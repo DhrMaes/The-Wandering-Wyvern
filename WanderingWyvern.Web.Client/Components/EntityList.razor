@@ -1,0 +1,32 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+
+@if (Entities.Count > 0)
+{
+    <h2 id="@Id">@Title</h2>
+    <div class="card-grid">
+        @foreach (var entity in Entities)
+        {
+            var document = entity.PrimaryDocument;
+            if (document is null)
+            {
+                continue;
+            }
+
+            <EntityCard Entity="entity" DocumentPath="@document.RelativePath" PlaceholderIcon="@PlaceholderIcon" />
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required string Title { get; set; }
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public required IReadOnlyList<CampaignEntity> Entities { get; set; }
+
+    [Parameter]
+    public string PlaceholderIcon { get; set; } = "🐉";
+}

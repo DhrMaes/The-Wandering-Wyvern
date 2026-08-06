@@ -1,0 +1,10 @@
+@page "/session/{Slug}"
+
+<DhrMaes.WanderingWyvern.Web.Client.Pages.SessionView
+    Slug="@Slug"
+    @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+
+@code {
+    [Parameter]
+    public required string Slug { get; set; }
+}

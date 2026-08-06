@@ -1,0 +1,27 @@
+@inject NavigationManager Navigation
+
+<nav class="nav-menu">
+    <div class="nav-brand">
+        <span class="nav-brand-icon">🐉</span>
+        <div>
+            <div class="nav-brand-title">A Language of Dragons</div>
+            <div class="nav-brand-subtitle">The Wandering Wyvern</div>
+        </div>
+    </div>
+
+    <a class="nav-link @(IsActive("/") ? "active" : "")" href="/">
+        <span class="nav-link-icon">🏰</span> Overzicht
+    </a>
+
+    <DhrMaes.WanderingWyvern.Web.Client.Components.CampaignNavMenu
+        @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+
+</nav>
+
+@code {
+    private bool IsActive(string path)
+    {
+        var current = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimEnd('/');
+        return string.Equals(current, path, StringComparison.OrdinalIgnoreCase) || (path == "/" && current == "/");
+    }
+}

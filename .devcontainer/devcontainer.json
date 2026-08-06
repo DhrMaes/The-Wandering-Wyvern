@@ -1,0 +1,49 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/dotnet
+{
+	"name": "The Wandering Wyvern",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspaces",
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {},
+
+	// Avoid hardcoded ports. VS Code auto-forwards ports detected from running processes.
+	"portsAttributes": {
+		"*": {
+			"onAutoForward": "notify"
+		}
+	},
+
+	// Restore dependencies after the container is created.
+	"postCreateCommand": "dotnet restore /workspaces/WanderingWyvern/WanderingWyvern.slnx",
+
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"files.exclude": {
+					"**/bin": true,
+					"**/obj": true
+				},
+				"search.exclude": {
+					"**/bin": true,
+					"**/obj": true
+				},
+				"files.watcherExclude": {
+					"**/bin/**": true,
+					"**/obj/**": true
+				}
+			},
+			"extensions": [
+				"ms-dotnettools.csharp",
+				"ms-dotnettools.vscode-dotnet-runtime",
+				"dbaeumer.vscode-eslint"
+			]
+		}
+	},
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	"remoteUser": "root"
+}

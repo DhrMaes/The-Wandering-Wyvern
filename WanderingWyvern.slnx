@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="WanderingWyvern.Core/WanderingWyvern.Core.csproj" />
+  <Project Path="WanderingWyvern.Web/WanderingWyvern.Web.csproj" />
+  <Project Path="WanderingWyvern.Web.Client/WanderingWyvern.Web.Client.csproj" />
+</Solution>

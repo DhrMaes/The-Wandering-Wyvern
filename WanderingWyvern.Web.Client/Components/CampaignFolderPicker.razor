@@ -1,0 +1,125 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@implements IDisposable
+@inject CampaignClientState CampaignState
+
+<section class="campaign-folder-picker">
+    @if (!CampaignState.HasSelectedFolder)
+    {
+        <div class="folder-welcome">
+            <div class="folder-welcome-icon" aria-hidden="true">🐉</div>
+            <p class="eyebrow">The Wandering Wyvern</p>
+            <h1>Open je campagne</h1>
+            <p class="folder-welcome-lead">
+                Kies de map waarin je campagne staat. De viewer leest de bestanden rechtstreeks
+                op deze computer; er wordt niets naar de server geüpload.
+            </p>
+
+            <div class="folder-steps">
+                <div class="folder-step">
+                    <span>1</span>
+                    <div>
+                        <strong>Gebruik Chrome of Edge</strong>
+                        <p>Lokale maptoegang werkt het best in een recente desktopbrowser.</p>
+                    </div>
+                </div>
+                <div class="folder-step">
+                    <span>2</span>
+                    <div>
+                        <strong>Kies de campagnemap</strong>
+                        <p>Kies de bovenste map met bijvoorbeeld <code>Sessions</code>, <code>NPCs</code> en <code>Locations</code>.</p>
+                    </div>
+                </div>
+                <div class="folder-step">
+                    <span>3</span>
+                    <div>
+                        <strong>Geef toestemming</strong>
+                        <p>De browser vraagt toestemming om de bestanden te lezen en live notities terug te schrijven.</p>
+                    </div>
+                </div>
+            </div>
+
+            <button class="folder-primary-button" @onclick="ChooseFolderAsync" disabled="@_isBusy">
+                @(_isBusy ? "Campagne wordt geopend..." : "Campagnemap kiezen")
+            </button>
+            <p class="folder-privacy-note">Je bestanden blijven op je computer en zijn alleen beschikbaar in deze browser.</p>
+        </div>
+    }
+    else
+    {
+        <div class="folder-selected">
+            <div>
+                <p class="eyebrow">Campagne geopend</p>
+                <h2>Lokale campagnemap</h2>
+                <p>@CampaignState.FileCount bestanden beschikbaar in deze browser.</p>
+            </div>
+            <div class="folder-actions">
+                <button @onclick="RefreshAsync" disabled="@_isBusy">
+                    @(_isBusy ? "Vernieuwen..." : "Vernieuwen")
+                </button>
+                <button class="button-secondary" @onclick="ChooseFolderAsync" disabled="@_isBusy">
+                    Andere map kiezen
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (_errorMessage is not null)
+    {
+        <p class="error-message">@_errorMessage</p>
+    }
+</section>
+
+@code {
+    private bool _isBusy;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private async Task ChooseFolderAsync()
+    {
+        _isBusy = true;
+        _errorMessage = null;
+
+        try
+        {
+            await CampaignState.ChooseFolderAsync();
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = exception.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _isBusy = true;
+        _errorMessage = null;
+
+        try
+        {
+            await CampaignState.RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = exception.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

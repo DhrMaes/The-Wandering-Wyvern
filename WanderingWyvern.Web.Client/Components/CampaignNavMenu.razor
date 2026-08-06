@@ -1,0 +1,48 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@implements IDisposable
+@inject CampaignClientState CampaignState
+
+@if (CampaignState.Current is { } index)
+{
+    <div class="nav-section-title">Sessies</div>
+    @foreach (var session in index.Sessions)
+    {
+        <a class="nav-link nav-link-sub" href="@($"/session/{session.Slug}")">
+            <span class="nav-link-icon">📖</span> @session.Title
+        </a>
+    }
+
+    <div class="nav-section-title">Codex</div>
+    <a class="nav-link" href="/#npcs">
+        <span class="nav-link-icon">🎭</span> NPCs
+    </a>
+    <a class="nav-link" href="/#locations">
+        <span class="nav-link-icon">🗺️</span> Locaties
+    </a>
+    <a class="nav-link" href="/#lore">
+        <span class="nav-link-icon">📜</span> Lore
+    </a>
+    <a class="nav-link" href="/#pcs">
+        <span class="nav-link-icon">⚔️</span> Personages
+    </a>
+    <a class="nav-link" href="/#items">
+        <span class="nav-link-icon">💎</span> Items
+    </a>
+    <a class="nav-link" href="/#handouts">
+        <span class="nav-link-icon">📋</span> Handouts
+    </a>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

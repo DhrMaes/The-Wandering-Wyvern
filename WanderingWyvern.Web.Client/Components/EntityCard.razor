@@ -1,0 +1,35 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@inject CampaignClientState CampaignState
+
+<a class="entity-card" href="@($"/document/{DocumentPath}")">
+    @if (_imageUrl is not null)
+    {
+        <img class="entity-card-image" src="@_imageUrl" alt="@Entity.Title" loading="lazy" />
+    }
+    else
+    {
+        <div class="entity-card-image-placeholder">@PlaceholderIcon</div>
+    }
+    <div class="entity-card-title">@Entity.Title</div>
+</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public required CampaignEntity Entity { get; set; }
+
+    [Parameter, EditorRequired]
+    public required string DocumentPath { get; set; }
+
+    [Parameter]
+    public string PlaceholderIcon { get; set; } = "🐉";
+
+    private string? _imageUrl;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _imageUrl = Entity.CardImage is { } image
+            ? await CampaignState.ReadAssetUrlAsync(image)
+            : null;
+    }
+
+}

@@ -1,0 +1,109 @@
+@page "/session/{Slug}"
+@implements IDisposable
+@inject CampaignClientState CampaignState
+@inject CampaignMarkdownRenderer Renderer
+
+<PageTitle>@(_session?.Title ?? Slug)</PageTitle>
+
+<div class="page-container">
+    <a class="back-link" href="/">&larr; Terug naar overzicht</a>
+
+    @if (CampaignState.Current is null)
+    {
+        <CampaignFolderPicker />
+    }
+    else if (_session is null)
+    {
+        <p><em>Sessie '@Slug' niet gevonden.</em></p>
+    }
+    else
+    {
+        <h1>@_session.Title</h1>
+
+        <div class="split-pane">
+            <div class="split-pane-column outline-column">
+                <h2>Outline (regie)</h2>
+                @((MarkupString)(_outlineHtml ?? "<p><em>Laden...</em></p>"))
+            </div>
+            <div class="split-pane-column script-column">
+                <h2>Voorleesscript</h2>
+                @((MarkupString)(_scriptHtml ?? "<p><em>Laden...</em></p>"))
+            </div>
+        </div>
+
+        <div class="live-notes">
+            <h2>Live notities (voor de recap)</h2>
+            @if (!string.IsNullOrWhiteSpace(_existingNotes))
+            {
+                <pre>@_existingNotes</pre>
+            }
+            <textarea @bind="_newNote" placeholder="Wat gebeurt er net aan tafel?"></textarea>
+            <p><button @onclick="SaveNoteAsync">Toevoegen</button></p>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public required string Slug { get; set; }
+
+    private CampaignEntity? _session;
+    private string? _outlineHtml;
+    private string? _scriptHtml;
+    private string? _existingNotes;
+    private string _newNote = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        LoadSession();
+        await LoadDocumentsAsync();
+        _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+    }
+
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private void LoadSession()
+    {
+        _session = CampaignState.Current?.FindSession(Slug);
+    }
+
+    private async void HandleChanged()
+    {
+        LoadSession();
+        await LoadDocumentsAsync();
+        _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        _outlineHtml = await RenderDocumentAsync("outline");
+        _scriptHtml = await RenderDocumentAsync("script");
+    }
+
+    private async Task<string> RenderDocumentAsync(string fileName)
+    {
+        if (_session is null || !_session.Documents.TryGetValue(fileName, out var document))
+            return "<p><em>Nog niet aangemaakt.</em></p>";
+
+        return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newNote))
+            return;
+
+        await CampaignState.AppendNoteAsync(Slug, _newNote);
+        _newNote = string.Empty;
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+    }
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

@@ -1,0 +1,66 @@
+@page "/document/{*RelativePath}"
+@implements IDisposable
+@inject CampaignClientState CampaignState
+@inject CampaignMarkdownRenderer Renderer
+
+<PageTitle>@(_document?.Title ?? RelativePath)</PageTitle>
+
+<div class="page-container">
+    <a class="back-link" href="/">&larr; Terug naar overzicht</a>
+
+    @if (CampaignState.Current is null)
+    {
+        <CampaignFolderPicker />
+    }
+    else if (_document is null)
+    {
+        <p><em>Document niet gevonden: @RelativePath</em></p>
+    }
+    else
+    {
+        @if (!_document.HasExplicitTitle)
+        {
+            <h1>@_document.Title</h1>
+        }
+        <article class="markdown-document">
+            @((MarkupString)(_renderedHtml ?? "<p><em>Laden...</em></p>"))
+        </article>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public required string RelativePath { get; set; }
+
+    private CampaignDocument? _document;
+    private string? _renderedHtml;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadDocumentAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private async Task LoadDocumentAsync()
+    {
+        _document = CampaignState.Current?.FindDocument(RelativePath);
+        _renderedHtml = _document is not null && CampaignState.Current is not null
+            ? await Renderer.RenderToHtmlAsync(_document, CampaignState.Current)
+            : null;
+    }
+
+    private async void HandleChanged()
+    {
+        await LoadDocumentAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

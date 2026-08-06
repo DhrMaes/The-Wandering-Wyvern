@@ -1,0 +1,62 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@implements IDisposable
+@inject CampaignClientState CampaignState
+
+<PageTitle>The Wandering Wyvern</PageTitle>
+
+<div class="page-container">
+    <CampaignFolderPicker />
+
+    @if (CampaignState.Current is { } index)
+    {
+        <div class="hero">
+            <h1>A Language of Dragons</h1>
+            <p>The Wandering Wyvern — alles wat je nodig hebt aan tafel, op één plek.</p>
+            <div class="stat-row">
+                <div class="stat-pill"><strong>@index.Sessions.Count</strong> sessies</div>
+                <div class="stat-pill"><strong>@index.Npcs.Count</strong> NPCs</div>
+                <div class="stat-pill"><strong>@index.Locations.Count</strong> locaties</div>
+                <div class="stat-pill"><strong>@index.Items.Count</strong> items</div>
+            </div>
+        </div>
+
+        <h2 id="sessions">Sessies</h2>
+        @if (index.Sessions.Count == 0)
+        {
+            <p class="empty-state">Nog geen sessies gevonden.</p>
+        }
+        else
+        {
+            <div class="card-grid">
+                @foreach (var session in index.Sessions)
+                {
+                    <a class="session-card" href="@($"/session/{session.Slug}")">
+                        <div class="session-card-title">📖 @session.Title</div>
+                        <div class="session-card-meta">@session.Slug</div>
+                    </a>
+                }
+            </div>
+        }
+
+        <EntityList Id="npcs" Title="NPCs" Entities="index.Npcs" />
+        <EntityList Id="locations" Title="Locaties" Entities="index.Locations" />
+        <EntityList Id="lore" Title="Lore" Entities="index.Lore" />
+        <EntityList Id="pcs" Title="Personages (PCs)" Entities="index.Pcs" />
+        <EntityList Id="items" Title="Items" Entities="index.Items" />
+        <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" />
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

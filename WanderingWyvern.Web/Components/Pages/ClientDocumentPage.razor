@@ -1,0 +1,10 @@
+@page "/document/{*RelativePath}"
+
+<DhrMaes.WanderingWyvern.Web.Client.Pages.DocumentView
+    RelativePath="@RelativePath"
+    @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+
+@code {
+    [Parameter]
+    public required string RelativePath { get; set; }
+}
