@@ -157,4 +157,5 @@ be able to pull the private GHCR image.
 ## Known limitations
 
 - The File System Access API works best in Chrome and Edge on desktop.
-- A user must explicitly choose the campaign folder each time browser permissions are unavailable.
+- The app remembers the last campaign folder when the browser preserves its directory handle and
+  permission; otherwise the user must choose the folder again.

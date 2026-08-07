@@ -1,6 +1,9 @@
 let campaignDirectory = null;
 const fileHandles = new Map();
 const objectUrls = new Map();
+const directoryHandleDatabaseName = "wandering-wyvern";
+const directoryHandleStoreName = "settings";
+const directoryHandleKey = "campaign-directory";
 
 export async function chooseFolder() {
     if (!window.showDirectoryPicker) {
@@ -10,6 +13,40 @@ export async function chooseFolder() {
     const selectedDirectory = await window.showDirectoryPicker({ mode: "readwrite" });
     clearObjectUrls();
     campaignDirectory = selectedDirectory;
+    fileHandles.clear();
+    await saveDirectoryHandle(selectedDirectory);
+    return await indexDirectory(campaignDirectory, "");
+}
+
+export async function hasSavedFolder() {
+    if (!window.indexedDB) {
+        return false;
+    }
+
+    return await loadDirectoryHandle() !== null;
+}
+
+export async function restoreFolder(requestPermission = false) {
+    if (!window.indexedDB) {
+        return null;
+    }
+
+    const savedDirectory = await loadDirectoryHandle();
+    if (!savedDirectory) {
+        return null;
+    }
+
+    let permission = await savedDirectory.queryPermission({ mode: "readwrite" });
+    if (permission !== "granted" && requestPermission) {
+        permission = await savedDirectory.requestPermission({ mode: "readwrite" });
+    }
+
+    if (permission !== "granted") {
+        return null;
+    }
+
+    clearObjectUrls();
+    campaignDirectory = savedDirectory;
     fileHandles.clear();
     return await indexDirectory(campaignDirectory, "");
 }
@@ -176,6 +213,43 @@ function ensureFolderSelected() {
     if (!campaignDirectory) {
         throw new Error("Kies eerst een campagnemap.");
     }
+}
+
+function openDirectoryHandleDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(directoryHandleDatabaseName, 1);
+        request.onupgradeneeded = () => {
+            request.result.createObjectStore(directoryHandleStoreName);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function loadDirectoryHandle() {
+    const database = await openDirectoryHandleDatabase();
+    return await new Promise((resolve, reject) => {
+        const transaction = database.transaction(directoryHandleStoreName, "readonly");
+        const request = transaction.objectStore(directoryHandleStoreName).get(directoryHandleKey);
+        request.onsuccess = () => resolve(request.result ?? null);
+        request.onerror = () => reject(request.error);
+        transaction.oncomplete = () => database.close();
+    });
+}
+
+async function saveDirectoryHandle(directoryHandle) {
+    if (!window.indexedDB) {
+        return;
+    }
+
+    const database = await openDirectoryHandleDatabase();
+    await new Promise((resolve, reject) => {
+        const transaction = database.transaction(directoryHandleStoreName, "readwrite");
+        transaction.objectStore(directoryHandleStoreName).put(directoryHandle, directoryHandleKey);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
 }
 
 export function clearObjectUrls() {

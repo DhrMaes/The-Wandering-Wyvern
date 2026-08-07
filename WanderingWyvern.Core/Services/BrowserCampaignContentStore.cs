@@ -24,6 +24,20 @@ public sealed class BrowserCampaignContentStore : ICampaignContentStore, IAsyncD
         return files;
     }
 
+    public async Task<bool> HasSavedFolderAsync(CancellationToken cancellationToken = default)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<bool>("hasSavedFolder", cancellationToken);
+    }
+
+    public async Task<string[]?> RestoreFolderAsync(
+        bool requestPermission,
+        CancellationToken cancellationToken = default)
+    {
+        var module = await GetModuleAsync();
+        return await module.InvokeAsync<string[]?>("restoreFolder", cancellationToken, requestPermission);
+    }
+
     public async Task<IReadOnlyList<CampaignFileMetadata>> GetFileMetadataAsync(
         CancellationToken cancellationToken = default)
     {

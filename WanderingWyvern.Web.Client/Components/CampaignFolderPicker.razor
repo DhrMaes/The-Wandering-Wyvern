@@ -41,6 +41,12 @@
             <button class="folder-primary-button" @onclick="ChooseFolderAsync" disabled="@_isBusy">
                 @(_isBusy ? "Campagne wordt geopend..." : "Campagnemap kiezen")
             </button>
+            @if (CampaignState.CanRestoreSavedFolder)
+            {
+                <button class="button-secondary" @onclick="RestoreFolderAsync" disabled="@_isBusy">
+                    Vorige campagne openen
+                </button>
+            }
             <p class="folder-privacy-note">Je bestanden blijven op je computer en zijn alleen beschikbaar in deze browser.</p>
         </div>
     }
@@ -67,11 +73,30 @@
     {
         <p class="error-message">@_errorMessage</p>
     }
+
+    @if (CampaignState.MonitorError is not null)
+    {
+        <p class="error-message">
+            Automatisch vernieuwen is gestopt. Vernieuw handmatig om opnieuw te proberen.
+        </p>
+    }
 </section>
 
 @code {
     private bool _isBusy;
     private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await CampaignState.RestoreSavedFolderAsync();
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = exception.Message;
+        }
+    }
 
     protected override void OnInitialized()
     {
@@ -105,6 +130,26 @@
         try
         {
             await CampaignState.RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            _errorMessage = exception.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task RestoreFolderAsync()
+    {
+        _isBusy = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (!await CampaignState.RestoreSavedFolderAsync(requestPermission: true))
+                _errorMessage = "De vorige campagnemap kon niet worden geopend. Kies de map opnieuw.";
         }
         catch (Exception exception)
         {

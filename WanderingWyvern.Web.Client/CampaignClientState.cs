@@ -1,5 +1,6 @@
 using DhrMaes.WanderingWyvern.Core.Models;
 using DhrMaes.WanderingWyvern.Core.Services;
+using Microsoft.JSInterop;
 
 namespace DhrMaes.WanderingWyvern.Web.Client;
 
@@ -14,6 +15,8 @@ public sealed class CampaignClientState : IAsyncDisposable
     private CancellationTokenSource? _monitorCancellation;
     private Task? _monitorTask;
     private IReadOnlyList<CampaignFileMetadata> _fileMetadata = [];
+    private bool _isChoosingFolder;
+    private bool _restoreAttempted;
 
     public CampaignClientState(BrowserCampaignContentStore contentStore)
     {
@@ -26,17 +29,57 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     public int FileCount { get; private set; }
 
+    public bool CanRestoreSavedFolder { get; private set; }
+
+    public string? MonitorError { get; private set; }
+
     public event Action? Changed;
 
     public async Task ChooseFolderAsync(CancellationToken cancellationToken = default)
     {
+        MonitorError = null;
+        _isChoosingFolder = true;
+        try
+        {
+            var files = await _contentStore.ChooseFolderAsync(cancellationToken);
+            await StopMonitorAsync();
+            Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
+            FileCount = files.Count;
+            _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
+            CanRestoreSavedFolder = true;
+            StartMonitor();
+            Changed?.Invoke();
+        }
+        finally
+        {
+            _isChoosingFolder = false;
+        }
+    }
+
+    public async Task<bool> RestoreSavedFolderAsync(
+        bool requestPermission = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (!requestPermission && _restoreAttempted)
+            return Current is not null;
+
+        _restoreAttempted = true;
+        CanRestoreSavedFolder = await _contentStore.HasSavedFolderAsync(cancellationToken);
+        if (!CanRestoreSavedFolder)
+            return false;
+
+        var files = await _contentStore.RestoreFolderAsync(requestPermission, cancellationToken);
+        if (files is null)
+            return false;
+
         await StopMonitorAsync();
-        var files = await _contentStore.ChooseFolderAsync(cancellationToken);
         Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
-        FileCount = files.Count;
+        FileCount = files.Length;
         _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
+        MonitorError = null;
         StartMonitor();
         Changed?.Invoke();
+        return true;
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -44,6 +87,7 @@ public sealed class CampaignClientState : IAsyncDisposable
         if (!HasSelectedFolder)
             return;
 
+        MonitorError = null;
         await _refreshLock.WaitAsync(cancellationToken);
         try
         {
@@ -53,6 +97,8 @@ public sealed class CampaignClientState : IAsyncDisposable
             FileCount = metadata.Count;
             _fileMetadata = metadata;
             Changed?.Invoke();
+            if (_monitorTask is null || _monitorTask.IsCompleted)
+                StartMonitor();
         }
         finally
         {
@@ -106,6 +152,7 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     private void StartMonitor()
     {
+        _monitorCancellation?.Dispose();
         _monitorCancellation = new CancellationTokenSource();
         _monitorTask = MonitorAsync(_monitorCancellation.Token);
     }
@@ -134,14 +181,25 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     private async Task MonitorAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        try
         {
-            var metadata = await ReadFileMetadataAsync(cancellationToken);
-            if (metadata.SequenceEqual(_fileMetadata, CampaignFileMetadataComparer.Instance))
-                continue;
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                var metadata = await ReadFileMetadataAsync(cancellationToken);
+                if (_isChoosingFolder || metadata.SequenceEqual(_fileMetadata, CampaignFileMetadataComparer.Instance))
+                    continue;
 
-            await RefreshAsync(cancellationToken);
+                await RefreshAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSException exception)
+        {
+            MonitorError = exception.Message;
+            Changed?.Invoke();
         }
     }
 
