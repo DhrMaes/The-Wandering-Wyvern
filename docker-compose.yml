@@ -1,0 +1,7 @@
+services:
+  wandering-wyvern:
+    image: ghcr.io/dhrmaes/wandering-wyvern:${IMAGE_TAG:-latest}
+    container_name: wandering-wyvern
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
