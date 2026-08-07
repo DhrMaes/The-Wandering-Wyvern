@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@inject NavigationManager Navigation
+
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -16,24 +18,43 @@
 </head>
 
 <body>
-    <div id="app-loading" class="app-loading" role="status" aria-live="polite">
-        <div class="app-loading-spinner" aria-hidden="true"></div>
-        <div>
-            <strong>The Wandering Wyvern</strong>
-            <span>De viewer wordt geladen...</span>
+    @if (IsOverviewPage)
+    {
+        <div id="app-loading" class="app-loading" role="status" aria-live="polite">
+            <div class="app-loading-spinner" aria-hidden="true"></div>
+            <div>
+                <strong>The Wandering Wyvern</strong>
+                <span>De viewer wordt geladen...</span>
+            </div>
         </div>
-    </div>
+    }
     <Routes />
     <script>
         window.wanderingWyvern = window.wanderingWyvern || {};
-        window.wanderingWyvern.hideLoading = function () {
+        window.wanderingWyvern.hideLoading = function (markClientReady = true) {
             const loading = document.getElementById("app-loading");
             if (loading) {
                 loading.classList.add("is-hidden");
             }
+            if (markClientReady) {
+                sessionStorage.setItem("wandering-wyvern-client-ready", "true");
+            }
         };
+
+        const normalizedPath = window.location.pathname.replace(/\/+$/, "");
+        const isOverviewPage = normalizedPath === "";
+        const isHelpPage = normalizedPath === "/help";
+        const clientWasAlreadyReady = sessionStorage.getItem("wandering-wyvern-client-ready") === "true";
+        if (!isOverviewPage || isHelpPage || clientWasAlreadyReady) {
+            window.wanderingWyvern.hideLoading(false);
+        }
     </script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    private bool IsOverviewPage =>
+        new Uri(Navigation.Uri).AbsolutePath.Trim('/').Length == 0;
+}

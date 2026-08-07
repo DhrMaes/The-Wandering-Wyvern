@@ -33,6 +33,8 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     public string? MonitorError { get; private set; }
 
+    public string? RestoreError { get; private set; }
+
     public event Action? Changed;
 
     public async Task ChooseFolderAsync(CancellationToken cancellationToken = default)
@@ -63,23 +65,33 @@ public sealed class CampaignClientState : IAsyncDisposable
         if (!requestPermission && _restoreAttempted)
             return Current is not null;
 
+        RestoreError = null;
         _restoreAttempted = true;
-        CanRestoreSavedFolder = await _contentStore.HasSavedFolderAsync(cancellationToken);
-        if (!CanRestoreSavedFolder)
-            return false;
+        try
+        {
+            CanRestoreSavedFolder = await _contentStore.HasSavedFolderAsync(cancellationToken);
+            if (!CanRestoreSavedFolder)
+                return false;
 
-        var files = await _contentStore.RestoreFolderAsync(requestPermission, cancellationToken);
-        if (files is null)
-            return false;
+            var files = await _contentStore.RestoreFolderAsync(requestPermission, cancellationToken);
+            if (files is null)
+                return false;
 
-        await StopMonitorAsync();
-        Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
-        FileCount = files.Length;
-        _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
-        MonitorError = null;
-        StartMonitor();
-        Changed?.Invoke();
-        return true;
+            await StopMonitorAsync();
+            Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
+            FileCount = files.Length;
+            _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
+            MonitorError = null;
+            StartMonitor();
+            Changed?.Invoke();
+            return true;
+        }
+        catch (JSException exception)
+        {
+            RestoreError = exception.Message;
+            Changed?.Invoke();
+            return false;
+        }
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)

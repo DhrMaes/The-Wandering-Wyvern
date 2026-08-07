@@ -80,23 +80,18 @@
             Automatisch vernieuwen is gestopt. Vernieuw handmatig om opnieuw te proberen.
         </p>
     }
+
+    @if (CampaignState.RestoreError is not null)
+    {
+        <p class="error-message">
+            De vorige campagnemap kon niet automatisch worden geopend. Kies de map opnieuw.
+        </p>
+    }
 </section>
 
 @code {
     private bool _isBusy;
     private string? _errorMessage;
-
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            await CampaignState.RestoreSavedFolderAsync();
-        }
-        catch (Exception exception)
-        {
-            _errorMessage = exception.Message;
-        }
-    }
 
     protected override void OnInitialized()
     {

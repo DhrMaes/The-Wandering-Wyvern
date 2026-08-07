@@ -40,6 +40,11 @@
         CampaignState.Changed += HandleChanged;
     }
 
+    protected override async Task OnInitializedAsync()
+    {
+        await CampaignState.RestoreSavedFolderAsync();
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

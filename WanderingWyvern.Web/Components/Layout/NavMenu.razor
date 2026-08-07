@@ -9,7 +9,7 @@
         </div>
     </div>
 
-    <a class="nav-link @(IsActive("/") ? "active" : "")" href="/">
+    <a class="nav-link @(IsActive("/") ? "active" : "")" href="/" data-enhance-nav="true">
         <span class="nav-link-icon">🏰</span> Overzicht
     </a>
 
@@ -17,7 +17,7 @@
         @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
 
     <div class="nav-help">
-        <a class="nav-link @(IsActive("/help") ? "active" : "")" href="/help">
+        <a class="nav-link @(IsActive("/help") ? "active" : "")" href="/help" data-enhance-nav="true">
             <span class="nav-link-icon">❔</span> Help
         </a>
     </div>
