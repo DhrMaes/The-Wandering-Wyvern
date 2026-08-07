@@ -118,18 +118,24 @@ concerns.
 
 ### Docker deployment
 
-The production image serves The Wandering Wyvern WebAssembly application through ASP.NET Core on port `8080`.
-Expose that port only to the Docker network used by Nginx Proxy Manager:
+The production image serves The Wandering Wyvern WebAssembly application through ASP.NET Core on port `8090`.
+The repository includes [`docker-compose.yml`](docker-compose.yml) for Portainer and other Compose-compatible
+deployments:
 
-```bash
-docker build -t wandering-wyvern .
-docker run -d --name wandering-wyvern \
-  --restart unless-stopped \
-  -p 127.0.0.1:8080:8080 \
-  wandering-wyvern
+```yaml
+services:
+  wandering-wyvern:
+    image: ghcr.io/dhrmaes/wandering-wyvern:${IMAGE_TAG:-latest}
 ```
 
-Configure Nginx Proxy Manager to forward your domain (e.g., `campaign.dhrmaes.com`) to the container, with Authentik protecting the Proxy Host and HTTPS terminated at Nginx Proxy Manager. No campaign directory volume is needed for the browser-local WebAssembly mode.
+In Portainer, create a Git-based Stack pointing to this repository and use `docker-compose.yml` as the Compose file path.
+Set the stack environment variable `IMAGE_TAG` to the published image tag, or leave it unset to use `latest`.
+No campaign directory volume is needed for browser-local WebAssembly mode.
+
+Configure Nginx Proxy Manager to forward your domain (e.g., `campaign.dhrmaes.com`) to
+the Docker host on port `8090`, with Authentik protecting the Proxy Host and HTTPS terminated at
+Nginx Proxy Manager. If Nginx Proxy Manager runs in another container, use the Docker host's
+reachable IP address rather than `127.0.0.1`.
 
 The GitHub Actions workflow in `.github/workflows/docker.yml` builds the image on git tag pushes, publishes `latest` and version tags to GHCR, then connects to WireGuard and redeploys the Portainer stack using the tag name.
 The stack should reference the immutable tag through an environment variable:

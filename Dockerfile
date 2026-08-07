@@ -16,8 +16,8 @@ RUN dotnet publish WanderingWyvern.Web/WanderingWyvern.Web.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
-ENV ASPNETCORE_URLS=http://+:8080
-EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8090
+EXPOSE 8090
 
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "WanderingWyvern.Web.dll"]
