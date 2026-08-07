@@ -26,4 +26,25 @@ public sealed class CampaignIndex
 
     public CampaignDocument? FindDocument(string normalizedRelativePath) =>
         DocumentsByPath.GetValueOrDefault(normalizedRelativePath);
+
+    public CampaignDocument? FindDocumentReference(string normalizedPath)
+    {
+        var document = FindDocument(normalizedPath);
+        if (document is not null)
+            return document;
+
+        return AllEntities()
+            .FirstOrDefault(entity =>
+                string.Equals(entity.RelativeFolderPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+            ?.PrimaryDocument;
+    }
+
+    private IEnumerable<CampaignEntity> AllEntities() =>
+        Sessions
+            .Concat(Npcs)
+            .Concat(Locations)
+            .Concat(Lore)
+            .Concat(Pcs)
+            .Concat(Items)
+            .Concat(Handouts);
 }

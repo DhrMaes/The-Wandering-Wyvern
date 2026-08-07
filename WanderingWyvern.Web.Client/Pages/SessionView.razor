@@ -22,11 +22,11 @@
         <div class="split-pane">
             <div class="split-pane-column outline-column">
                 <h2>Outline (regie)</h2>
-                @((MarkupString)(_outlineHtml ?? "<p><em>Laden...</em></p>"))
+                <CampaignReferenceContent Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")" />
             </div>
             <div class="split-pane-column script-column">
                 <h2>Voorleesscript</h2>
-                @((MarkupString)(_scriptHtml ?? "<p><em>Laden...</em></p>"))
+                <CampaignReferenceContent Html="@(_scriptHtml ?? "<p><em>Laden...</em></p>")" />
             </div>
         </div>
 

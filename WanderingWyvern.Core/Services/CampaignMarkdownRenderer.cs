@@ -4,15 +4,21 @@ using Markdig.Renderers;
 using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using System.Net;
+using System.Text.RegularExpressions;
 
 namespace DhrMaes.WanderingWyvern.Core.Services;
 
 /// <summary>
 /// Renders Markdown using a campaign content store and rewrites resolvable campaign links
-/// into campaign document navigation links.
+/// and inline document paths into campaign document navigation links.
 /// </summary>
 public sealed class CampaignMarkdownRenderer
 {
+    private static readonly Regex CodeSpanPattern = new(
+        "<code>(?<content>[^<>]*)</code>",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
     private readonly ICampaignContentStore _contentStore;
 
@@ -37,7 +43,7 @@ public sealed class CampaignMarkdownRenderer
         var renderer = new HtmlRenderer(writer);
         _pipeline.Setup(renderer);
         renderer.Render(parsedDocument);
-        return writer.ToString();
+        return RewriteCodePathReferences(writer.ToString(), currentDirectory, index);
     }
 
     private static string GetRelativeDirectory(string relativePath) =>
@@ -65,15 +71,20 @@ public sealed class CampaignMarkdownRenderer
         string url,
         CampaignIndex index)
     {
-        var withoutFragment = url.Split('#')[0];
+        var withoutFragment = Uri.UnescapeDataString(url.Split('#')[0]);
         if (string.IsNullOrWhiteSpace(withoutFragment))
             return null;
+
+        var campaignRelativePath = NormalizeRelativePath(withoutFragment);
+        var campaignDocument = index.FindDocumentReference(campaignRelativePath);
+        if (campaignDocument is not null)
+            return campaignDocument;
 
         var path = string.IsNullOrEmpty(currentDirectory)
             ? withoutFragment
             : $"{currentDirectory}/{withoutFragment}";
 
-        return index.FindDocument(NormalizeRelativePath(path));
+        return index.FindDocumentReference(NormalizeRelativePath(path));
     }
 
     private static string NormalizeRelativePath(string path)
@@ -98,6 +109,22 @@ public sealed class CampaignMarkdownRenderer
 
         return string.Join('/', segments);
     }
+
+    private static string RewriteCodePathReferences(
+        string html,
+        string currentDirectory,
+        CampaignIndex index) =>
+        CodeSpanPattern.Replace(
+            html,
+            match =>
+            {
+                var encodedContent = match.Groups["content"].Value;
+                var codePath = WebUtility.HtmlDecode(encodedContent);
+                var target = ResolveRelativeLink(currentDirectory, codePath, index);
+                return target is null
+                    ? match.Value
+                    : $"<code><a href=\"{BuildDocumentUrl(target.RelativePath)}\">{encodedContent}</a></code>";
+            });
 
     private static string BuildDocumentUrl(string relativePath) =>
         "/document/" + string.Join(

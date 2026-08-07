@@ -5,10 +5,14 @@
             // Use IntelliSense to find out which attributes exist for C# debugging
             // Use hover for the description of the existing attributes
             // For further information visit https://github.com/dotnet/vscode-csharp/blob/main/debugger-launchjson.md.
-            "name": ".NET Core Launch (web)",
+            "name": "Run The Wandering Wyvern",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
+            "presentation": {
+                "group": "wandering-wyvern",
+                "order": 1
+            },
             // If you have changed target frameworks, make sure to update the program path.
             "program": "${workspaceFolder}/WanderingWyvern.Web/bin/Debug/net10.0/WanderingWyvern.Web.dll",
             "args": [],
@@ -20,7 +24,8 @@
                 "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
             },
             "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development"
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:5285"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"

@@ -93,6 +93,10 @@ dotnet run --project WanderingWyvern.Web/WanderingWyvern.Web.csproj
 
 Open the displayed URL and choose the campaign root folder in the browser.
 
+When using VS Code, press `F5` and select **Run The Wandering Wyvern**. The repository's
+`.vscode` setup builds the Web host, starts it with the Development environment, and opens the
+local URL automatically.
+
 ### In the Dev Container
 
 `WanderingWyvern.Web/bin` and `WanderingWyvern.Web/obj` are mounted as container-managed volumes to
@@ -101,7 +105,7 @@ avoid Windows bind-mount timestamp/permission issues with `dotnet watch`.
 Then run the app in the container:
 
 ```bash
-dotnet watch run --project /workspaces/WanderingWyvern/WanderingWyvern.Web
+dotnet watch run --project /workspaces/WanderingWyvern.Web
 ```
 
 ## Live notes

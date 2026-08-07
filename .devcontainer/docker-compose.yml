@@ -6,10 +6,10 @@ services:
       DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: "1"
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
     volumes:
-      - ..:/workspaces/WanderingWyvern:cached
+      - ..:/workspaces:cached
       # Keep Web build outputs on Linux volumes to avoid Windows bind-mount metadata issues.
-      - wanderingwyvern-web-bin:/workspaces/WanderingWyvern/WanderingWyvern.Web/bin
-      - wanderingwyvern-web-obj:/workspaces/WanderingWyvern/WanderingWyvern.Web/obj
+      - wanderingwyvern-web-bin:/workspaces/WanderingWyvern.Web/bin
+      - wanderingwyvern-web-obj:/workspaces/WanderingWyvern.Web/obj
 
 volumes:
   wanderingwyvern-web-bin:

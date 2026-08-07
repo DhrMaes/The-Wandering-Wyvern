@@ -610,6 +610,69 @@ a:hover {
     margin-top: 0.75rem;
 }
 
+/* --- Campaign reference dialog --- */
+
+.campaign-reference-content a[href^="/document/"] {
+    color: var(--gold-bright);
+    text-decoration: underline;
+    text-decoration-color: var(--border-soft);
+    text-underline-offset: 0.15em;
+    cursor: pointer;
+}
+
+.campaign-reference-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.campaign-reference-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(900px, 100%);
+    max-height: min(85vh, 900px);
+    overflow: hidden;
+    background: var(--parchment-1);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: var(--shadow-deep);
+}
+
+.campaign-reference-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.campaign-reference-modal-header h2 {
+    margin: 0;
+}
+
+.campaign-reference-close {
+    border: 0;
+    background: transparent;
+    color: var(--ink-dim);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.campaign-reference-close:hover {
+    color: var(--gold-bright);
+}
+
+.campaign-reference-modal-body {
+    overflow: auto;
+    padding: 1.25rem;
+}
+
 .outline-column code {
     background: var(--parchment-3);
     color: var(--gold-bright);

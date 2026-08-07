@@ -17,7 +17,7 @@
 	},
 
 	// Restore dependencies after the container is created.
-	"postCreateCommand": "dotnet restore /workspaces/WanderingWyvern/WanderingWyvern.slnx",
+	"postCreateCommand": "dotnet restore /workspaces/WanderingWyvern.slnx",
 
 	// Configure tool-specific properties.
 	"customizations": {

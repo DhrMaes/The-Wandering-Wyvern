@@ -22,7 +22,7 @@
             <h1>@_document.Title</h1>
         }
         <article class="markdown-document">
-            @((MarkupString)(_renderedHtml ?? "<p><em>Laden...</em></p>"))
+            <CampaignReferenceContent Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")" />
         </article>
     }
 </div>
