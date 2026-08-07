@@ -18,6 +18,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveWebAssemblyRenderMode();
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(DhrMaes.WanderingWyvern.Web.Client.ClientMarker).Assembly);
 
 app.Run();

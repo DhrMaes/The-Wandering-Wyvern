@@ -11,7 +11,6 @@ COPY . .
 RUN dotnet publish WanderingWyvern.Web/WanderingWyvern.Web.csproj \
     --configuration Release \
     --output /app/publish \
-    --no-restore \
     /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
