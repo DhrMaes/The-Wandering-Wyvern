@@ -5,3 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "8090:8090"
+    volumes:
+      - aspnet-data-protection:/root/.aspnet/DataProtection-Keys
+
+volumes:
+  aspnet-data-protection:
