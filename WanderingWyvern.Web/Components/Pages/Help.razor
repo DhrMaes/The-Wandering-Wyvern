@@ -1,0 +1,128 @@
+@page "/help"
+
+<PageTitle>Help - The Wandering Wyvern</PageTitle>
+
+<div class="page-container help-page">
+    <p class="eyebrow">De Wyvern wijst de weg</p>
+    <h1>Je campagne structureren</h1>
+    <p class="help-intro">
+        The Wandering Wyvern leest je campagne rechtstreeks uit de map die je kiest.
+        Gebruik onderstaande structuur als startpunt. Je bestanden blijven op je computer
+        en worden niet naar de server geupload.
+    </p>
+
+    <section class="help-section">
+        <h2>1. Kies de juiste hoofdmap</h2>
+        <p>
+            Kies de bovenste map van je campagne, met daarin bijvoorbeeld
+            <code>Sessions</code>, <code>NPCs</code> en <code>Locations</code>.
+            Kies dus niet alleen de map <code>NPCs</code>.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>2. Gebruik deze mappen</h2>
+        <pre class="help-tree"><code>Mijn campagne/
+├── Sessions/
+├── NPCs/
+├── Locations/
+├── Lore/
+├── PCs/
+├── Items/
+└── Handouts/</code></pre>
+        <p>
+            De mapnamen zijn hoofdletterongevoelig. Lege mappen worden gewoon overgeslagen.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>3. Maak entiteiten herkenbaar</h2>
+        <p>
+            Een entiteit kan een enkel Markdown-bestand zijn of een eigen map met meerdere
+            bestanden.
+        </p>
+        <pre class="help-tree"><code>NPCs/
+└── chumana/
+    ├── chumana.md
+    ├── chumana.icon.png
+    └── chumana.png
+
+Locations/
+└── mistwood/
+    ├── outline.md
+    └── map.png</code></pre>
+        <p>
+            Voor mappen gebruikt de viewer eerst een bestand met dezelfde naam als de map,
+            daarna <code>outline.md</code>, en daarna het eerste Markdown-bestand op naam.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>4. Schrijf Markdown</h2>
+        <p>
+            Begin belangrijke documenten bij voorkeur met één <code># Titel</code>.
+            Dat wordt de titel in kaarten, navigatie en pagina's.
+        </p>
+        <pre class="help-code"><code># Chumana
+
+## Uiterlijk
+
+## Persoonlijkheid
+
+## Achtergrond</code></pre>
+        <p>
+            Bestanden met de naam <code>*.prompt.md</code> worden niet in de viewer getoond.
+            Gebruik die gerust voor voorbereidende AI-prompts.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>5. Verwijs naar andere bestanden</h2>
+        <p>
+            Gebruik gewone relatieve Markdown-links:
+            <code>[Chumana](../NPCs/chumana/chumana.md)</code>.
+            Je kunt ook een campagnepad als code schrijven:
+            <code>NPCs/chumana/chumana.md</code>.
+        </p>
+        <p>
+            Geldige verwijzingen worden klikbaar en openen in een dialoogvenster. Een
+            entiteitmap, zoals <code>NPCs/chumana</code>, verwijst naar het primaire document
+            van die entiteit.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>6. Sessies en live notities</h2>
+        <pre class="help-tree"><code>Sessions/
+└── session-01/
+    ├── outline.md
+    ├── script.md
+    └── live-notes.md</code></pre>
+        <p>
+            <code>outline.md</code> is bedoeld voor de regie en <code>script.md</code> voor
+            tekst die je aan tafel wilt voorlezen. Het bestand <code>live-notes.md</code>
+            wordt automatisch aangemaakt wanneer je op de sessiepagina notities opslaat.
+        </p>
+    </section>
+
+    <section class="help-section">
+        <h2>7. Afbeeldingen</h2>
+        <p>
+            Geef afbeeldingen dezelfde basisnaam als je Markdown-bestand. Een
+            <code>.icon</code>-afbeelding wordt gebruikt voor compacte kaarten; een gewone
+            afbeelding wordt gebruikt als fallback.
+        </p>
+        <pre class="help-tree"><code>robert.md
+robert.icon.png
+robert.png</code></pre>
+    </section>
+
+    <section class="help-section help-tip">
+        <h2>Bestanden wijzigen tijdens het spelen</h2>
+        <p>
+            De viewer controleert de gekozen map automatisch. Nieuwe bestanden, wijzigingen
+            en verwijderingen verschijnen normaal binnen enkele seconden. Je kunt ook altijd
+            op <strong>Vernieuwen</strong> drukken.
+        </p>
+    </section>
+</div>

@@ -16,6 +16,11 @@
     <DhrMaes.WanderingWyvern.Web.Client.Components.CampaignNavMenu
         @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
 
+    <div class="nav-help">
+        <a class="nav-link @(IsActive("/help") ? "active" : "")" href="/help">
+            <span class="nav-link-icon">❔</span> Help
+        </a>
+    </div>
 </nav>
 
 @code {

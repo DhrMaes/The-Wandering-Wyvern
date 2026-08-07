@@ -1,6 +1,7 @@
 @namespace DhrMaes.WanderingWyvern.Web.Client.Components
 @implements IDisposable
 @inject CampaignClientState CampaignState
+@inject IJSRuntime JS
 
 @if (CampaignState.Current is { } index)
 {
@@ -37,6 +38,12 @@
     protected override void OnInitialized()
     {
         CampaignState.Changed += HandleChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("wanderingWyvern.hideLoading");
     }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);
