@@ -1,10 +1,11 @@
 @namespace DhrMaes.WanderingWyvern.Web.Client.Components
 @implements IDisposable
 @inject CampaignClientState CampaignState
+@inject IJSRuntime JS
 
 <PageTitle>The Wandering Wyvern</PageTitle>
 
-<div class="page-container">
+<div class="page-container @(CampaignState.Current is not null ? "campaign-home-ready" : string.Empty)">
     <CampaignFolderPicker />
 
     @if (CampaignState.Current is { } index)
@@ -48,9 +49,20 @@
 </div>
 
 @code {
+    private bool _scrollRestorationRequested;
+
     protected override void OnInitialized()
     {
         CampaignState.Changed += HandleChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollRestorationRequested && CampaignState.Current is not null)
+        {
+            _scrollRestorationRequested = true;
+            await JS.InvokeVoidAsync("wanderingWyvern.restoreOverviewScroll");
+        }
     }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);

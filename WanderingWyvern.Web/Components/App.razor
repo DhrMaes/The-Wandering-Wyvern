@@ -40,11 +40,48 @@
                 sessionStorage.setItem("wandering-wyvern-client-ready", "true");
             }
         };
+        window.wanderingWyvern.saveOverviewScroll = function () {
+            if (window.location.pathname.replace(/\/+$/, "") === "" &&
+                !window.wanderingWyvern.isRestoringOverviewScroll) {
+                sessionStorage.setItem("wandering-wyvern-overview-scroll", String(window.scrollY));
+            }
+        };
+        window.wanderingWyvern.restoreOverviewScroll = function () {
+            const overviewScrollKey = "wandering-wyvern-overview-scroll";
+            const savedScroll = Number.parseInt(sessionStorage.getItem(overviewScrollKey) ?? "", 10);
+            if (!Number.isFinite(savedScroll) || savedScroll <= 0) {
+                return;
+            }
+
+            window.wanderingWyvern.isRestoringOverviewScroll = true;
+            sessionStorage.removeItem(overviewScrollKey);
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                    window.scrollTo(0, savedScroll);
+                    window.setTimeout(function () {
+                        window.wanderingWyvern.isRestoringOverviewScroll = false;
+                    }, 100);
+                });
+            });
+        };
 
         const normalizedPath = window.location.pathname.replace(/\/+$/, "");
         const isOverviewPage = normalizedPath === "";
         const isHelpPage = normalizedPath === "/help";
         const clientWasAlreadyReady = sessionStorage.getItem("wandering-wyvern-client-ready") === "true";
+
+        if ("scrollRestoration" in history) {
+            history.scrollRestoration = "manual";
+        }
+
+        window.addEventListener("scroll", window.wanderingWyvern.saveOverviewScroll, { passive: true });
+        window.addEventListener("pagehide", window.wanderingWyvern.saveOverviewScroll);
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "hidden") {
+                window.wanderingWyvern.saveOverviewScroll();
+            }
+        });
+
         if (!isOverviewPage || isHelpPage || clientWasAlreadyReady) {
             window.wanderingWyvern.hideLoading(false);
         }
