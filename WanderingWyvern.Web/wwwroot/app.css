@@ -270,9 +270,50 @@ a:hover {
 }
 
 .nav-help {
-    margin-top: auto;
+    flex: 0 0 auto;
+    margin-top: 1rem;
     padding-top: 1rem;
     border-top: 1px solid var(--border-soft);
+}
+
+.nav-header {
+    display: contents;
+}
+
+.nav-drawer {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.nav-drawer-toggle {
+    display: none;
+}
+
+.nav-drawer-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.nav-drawer-links {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+@media (min-width: 701px) {
+    .nav-header {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+    }
 }
 
 /* --- Cards & lists --- */
@@ -873,4 +914,280 @@ a:hover {
 
 .live-notes button:hover {
     filter: brightness(1.12);
+}
+
+.markdown-document,
+.campaign-reference-modal-body {
+    overflow-wrap: anywhere;
+}
+
+.markdown-document img,
+.campaign-reference-modal-body img {
+    max-width: 100%;
+    height: auto;
+}
+
+.markdown-document pre,
+.campaign-reference-modal-body pre,
+.markdown-document table,
+.campaign-reference-modal-body table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+@media (max-width: 700px) {
+    body {
+        font-size: 1rem;
+        overflow-x: hidden;
+    }
+
+    .app-shell {
+        display: block;
+        min-height: 0;
+    }
+
+    body:has(.nav-drawer.is-open) {
+        overflow: hidden;
+    }
+
+    .nav-menu {
+        width: 100%;
+        height: auto;
+        max-height: none;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        overflow: visible;
+        border-right: 0;
+        border-bottom: 1px solid var(--border-soft);
+        padding: 0.5rem 0.75rem;
+    }
+
+    .nav-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 3.25rem;
+    }
+
+    .nav-brand {
+        flex: 1;
+        min-width: 0;
+        padding: 0.25rem 0.25rem 0.25rem 0.1rem;
+        margin: 0;
+        border-bottom: 0;
+    }
+
+    .nav-brand-icon {
+        font-size: 1.7rem;
+    }
+
+    .nav-brand-title {
+        font-size: 0.82rem;
+    }
+
+    .nav-brand-subtitle {
+        font-size: 0.62rem;
+    }
+
+    .nav-drawer {
+        position: static;
+        display: block;
+        flex: 0 0 auto;
+        min-height: auto;
+    }
+
+    .nav-drawer-toggle {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 1px solid var(--border-soft);
+        border-radius: 8px;
+        background: var(--parchment-2);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 1.35rem;
+        line-height: 1;
+        font-family: var(--font-body);
+    }
+
+    .nav-drawer-content {
+        position: fixed;
+        inset: 4.25rem 0 0;
+        z-index: 999;
+        max-height: none;
+        margin: 0;
+        padding: 1rem 0.75rem 2rem;
+        background: linear-gradient(180deg, var(--parchment-1), var(--parchment-0));
+        border-top: 1px solid var(--border-soft);
+        display: none;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        box-shadow: 0 16px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .nav-drawer.is-open > .nav-drawer-content {
+        display: flex;
+    }
+
+    .nav-link {
+        min-height: 44px;
+        padding: 0.65rem 0.75rem;
+        font-size: 0.95rem;
+    }
+
+    .nav-link-sub {
+        font-size: 0.9rem;
+    }
+
+    .nav-help {
+        margin-top: 1rem;
+    }
+
+    .app-main {
+        width: 100%;
+        max-width: none;
+        padding: 1rem 0.85rem 2.5rem;
+    }
+
+    h1 {
+        font-size: 1.7rem;
+        overflow-wrap: anywhere;
+    }
+
+    h2 {
+        font-size: 1.15rem;
+        margin-top: 1.5rem;
+    }
+
+    .folder-welcome {
+        margin: 1.5rem 0 2rem;
+        padding: 2rem 1rem;
+        border-radius: 14px;
+    }
+
+    .folder-welcome-lead {
+        font-size: 1rem;
+    }
+
+    .folder-primary-button,
+    .folder-welcome .button-secondary {
+        width: 100%;
+        min-height: 44px;
+        margin-left: 0;
+    }
+
+    .folder-welcome .button-secondary {
+        margin-top: 0.7rem;
+    }
+
+    .folder-selected {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 1rem;
+    }
+
+    .folder-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .folder-actions button {
+        min-height: 44px;
+    }
+
+    .hero {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .hero p {
+        font-size: 1rem;
+    }
+
+    .stat-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+    }
+
+    .stat-pill {
+        padding: 0.6rem 0.7rem;
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .stat-pill strong {
+        display: block;
+        margin: 0 0 0.15rem;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem;
+    }
+
+    .entity-card-title {
+        padding: 0.65rem 0.7rem 0.75rem;
+        font-size: 0.85rem;
+        overflow-wrap: anywhere;
+    }
+
+    .session-card {
+        padding: 0.9rem;
+    }
+
+    .session-card-title {
+        font-size: 0.9rem;
+        overflow-wrap: anywhere;
+    }
+
+    .split-pane {
+        gap: 1rem;
+    }
+
+    .split-pane-column {
+        max-height: none;
+        padding: 1rem;
+        overflow: visible;
+    }
+
+    .script-column blockquote {
+        font-size: 1.05rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .live-notes {
+        margin-top: 1rem;
+        padding: 1rem;
+    }
+
+    .campaign-reference-backdrop {
+        padding: 0.5rem;
+    }
+
+    .campaign-reference-modal {
+        max-height: 94vh;
+        border-radius: 10px;
+    }
+
+    .campaign-reference-modal-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .campaign-reference-modal-header h2 {
+        font-size: 1rem;
+    }
+
+    .campaign-reference-modal-body {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .card-grid {
+        grid-template-columns: 1fr;
+    }
 }

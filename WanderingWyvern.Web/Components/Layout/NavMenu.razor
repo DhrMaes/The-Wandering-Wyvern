@@ -1,25 +1,34 @@
 @inject NavigationManager Navigation
 
 <nav class="nav-menu">
-    <div class="nav-brand">
-        <span class="nav-brand-icon">🐉</span>
-        <div>
-            <div class="nav-brand-title">A Language of Dragons</div>
-            <div class="nav-brand-subtitle">The Wandering Wyvern</div>
+    <div class="nav-header">
+        <div class="nav-brand">
+            <span class="nav-brand-icon">🐉</span>
+            <div>
+                <div class="nav-brand-title">A Language of Dragons</div>
+                <div class="nav-brand-subtitle">The Wandering Wyvern</div>
+            </div>
         </div>
-    </div>
 
-    <a class="nav-link @(IsActive("/") ? "active" : "")" href="/" data-enhance-nav="true">
-        <span class="nav-link-icon">🏰</span> Overzicht
-    </a>
+        <div class="nav-drawer">
+            <button class="nav-drawer-toggle" type="button" aria-label="Navigatie openen of sluiten" aria-expanded="false">☰</button>
+            <div class="nav-drawer-content">
+                <div class="nav-drawer-links">
+                    <a class="nav-link @(IsActive("/") ? "active" : "")" href="/" data-enhance-nav="true">
+                        <span class="nav-link-icon">🏰</span> Overzicht
+                    </a>
 
-    <DhrMaes.WanderingWyvern.Web.Client.Components.CampaignNavMenu
-        @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+                    <DhrMaes.WanderingWyvern.Web.Client.Components.CampaignNavMenu
+                        @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+                </div>
 
-    <div class="nav-help">
-        <a class="nav-link @(IsActive("/help") ? "active" : "")" href="/help" data-enhance-nav="true">
-            <span class="nav-link-icon">❔</span> Help
-        </a>
+                <div class="nav-help">
+                    <a class="nav-link @(IsActive("/help") ? "active" : "")" href="/help" data-enhance-nav="true">
+                        <span class="nav-link-icon">❔</span> Help
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </nav>
 

@@ -69,6 +69,32 @@
         const isOverviewPage = normalizedPath === "";
         const isHelpPage = normalizedPath === "/help";
         const clientWasAlreadyReady = sessionStorage.getItem("wandering-wyvern-client-ready") === "true";
+        const navigationMedia = window.matchMedia("(max-width: 700px)");
+        document.querySelectorAll(".nav-drawer-toggle").forEach(function (toggle) {
+            toggle.addEventListener("click", function () {
+                if (!navigationMedia.matches) {
+                    return;
+                }
+
+                const drawer = toggle.closest(".nav-drawer");
+                const isOpen = drawer.classList.toggle("is-open");
+                toggle.setAttribute("aria-expanded", String(isOpen));
+            });
+        });
+        const syncNavigationDrawer = function () {
+            document.querySelectorAll(".nav-drawer").forEach(function (drawer) {
+                const toggle = drawer.querySelector(".nav-drawer-toggle");
+                if (navigationMedia.matches) {
+                    drawer.classList.remove("is-open");
+                    toggle?.setAttribute("aria-expanded", "false");
+                } else {
+                    drawer.classList.add("is-open");
+                    toggle?.setAttribute("aria-expanded", "true");
+                }
+            });
+        };
+        syncNavigationDrawer();
+        navigationMedia.addEventListener("change", syncNavigationDrawer);
 
         if ("scrollRestoration" in history) {
             history.scrollRestoration = "manual";
