@@ -83,6 +83,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 1rem;
+    text-align: center;
     background: var(--parchment-0);
     color: var(--ink);
     transition: opacity 0.2s ease, visibility 0.2s ease;

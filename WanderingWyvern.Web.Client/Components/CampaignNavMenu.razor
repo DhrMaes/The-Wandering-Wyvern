@@ -40,15 +40,15 @@
         CampaignState.Changed += HandleChanged;
     }
 
-    protected override async Task OnInitializedAsync()
-    {
-        await CampaignState.RestoreSavedFolderAsync();
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
+            var restoreTask = CampaignState.RestoreSavedFolderAsync();
+            await Task.Yield();
+            await restoreTask;
             await JS.InvokeVoidAsync("wanderingWyvern.hideLoading");
+        }
     }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);

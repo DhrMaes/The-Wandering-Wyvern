@@ -29,6 +29,8 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     public int FileCount { get; private set; }
 
+    public bool IsLoading { get; private set; }
+
     public bool CanRestoreSavedFolder { get; private set; }
 
     public string? MonitorError { get; private set; }
@@ -44,17 +46,18 @@ public sealed class CampaignClientState : IAsyncDisposable
         try
         {
             var files = await _contentStore.ChooseFolderAsync(cancellationToken);
+            SetLoading(true);
             await StopMonitorAsync();
             Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
             FileCount = files.Count;
             _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
             CanRestoreSavedFolder = true;
             StartMonitor();
-            Changed?.Invoke();
         }
         finally
         {
             _isChoosingFolder = false;
+            SetLoading(false);
         }
     }
 
@@ -77,20 +80,23 @@ public sealed class CampaignClientState : IAsyncDisposable
             if (files is null)
                 return false;
 
+            SetLoading(true);
             await StopMonitorAsync();
             Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
             FileCount = files.Length;
             _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
             MonitorError = null;
             StartMonitor();
-            Changed?.Invoke();
             return true;
         }
         catch (JSException exception)
         {
             RestoreError = exception.Message;
-            Changed?.Invoke();
             return false;
+        }
+        finally
+        {
+            SetLoading(false);
         }
     }
 
@@ -213,6 +219,15 @@ public sealed class CampaignClientState : IAsyncDisposable
             MonitorError = exception.Message;
             Changed?.Invoke();
         }
+    }
+
+    private void SetLoading(bool isLoading)
+    {
+        if (IsLoading == isLoading)
+            return;
+
+        IsLoading = isLoading;
+        Changed?.Invoke();
     }
 
     private sealed class CampaignFileMetadataComparer : IEqualityComparer<CampaignFileMetadata>

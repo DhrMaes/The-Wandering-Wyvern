@@ -1,0 +1,28 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@implements IDisposable
+@inject CampaignClientState CampaignState
+
+@if (CampaignState.IsLoading)
+{
+    <div class="app-loading" role="status" aria-live="polite">
+        <div class="app-loading-spinner" aria-hidden="true"></div>
+        <div>
+            <strong>The Wandering Wyvern</strong>
+            <span>De campagne wordt geladen...</span>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}
