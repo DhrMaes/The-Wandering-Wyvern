@@ -7,10 +7,25 @@ services:
       DOTNET_USE_POLLING_FILE_WATCHER: "1"
     volumes:
       - ..:/workspaces:cached
-      # Keep Web build outputs on Linux volumes to avoid Windows bind-mount metadata issues.
+      # Keep all .NET build outputs on Linux volumes to avoid Windows bind-mount metadata issues.
+      - wanderingwyvern-core-bin:/workspaces/WanderingWyvern.Core/bin
+      - wanderingwyvern-core-obj:/workspaces/WanderingWyvern.Core/obj
+      - wanderingwyvern-web-client-bin:/workspaces/WanderingWyvern.Web.Client/bin
+      - wanderingwyvern-web-client-obj:/workspaces/WanderingWyvern.Web.Client/obj
       - wanderingwyvern-web-bin:/workspaces/WanderingWyvern.Web/bin
       - wanderingwyvern-web-obj:/workspaces/WanderingWyvern.Web/obj
+      - wanderingwyvern-web-tests-bin:/workspaces/WanderingWyvern.Web.Tests/bin
+      - wanderingwyvern-web-tests-obj:/workspaces/WanderingWyvern.Web.Tests/obj
+      # Keep Playwright browsers available across container rebuilds.
+      - wanderingwyvern-playwright:/root/.cache/ms-playwright
 
 volumes:
+  wanderingwyvern-core-bin:
+  wanderingwyvern-core-obj:
+  wanderingwyvern-web-client-bin:
+  wanderingwyvern-web-client-obj:
   wanderingwyvern-web-bin:
   wanderingwyvern-web-obj:
+  wanderingwyvern-web-tests-bin:
+  wanderingwyvern-web-tests-obj:
+  wanderingwyvern-playwright:

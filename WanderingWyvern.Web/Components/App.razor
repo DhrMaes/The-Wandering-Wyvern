@@ -64,6 +64,16 @@
                 });
             });
         };
+        const hideReadyLoadingOverlay = function () {
+            if (sessionStorage.getItem("wandering-wyvern-client-ready") === "true") {
+                window.wanderingWyvern.hideLoading(false);
+            }
+        };
+        document.addEventListener("enhancedload", hideReadyLoadingOverlay);
+        new MutationObserver(hideReadyLoadingOverlay).observe(document.documentElement, {
+            childList: true,
+            subtree: true
+        });
 
         const normalizedPath = window.location.pathname.replace(/\/+$/, "");
         const isOverviewPage = normalizedPath === "";

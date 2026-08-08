@@ -97,16 +97,41 @@ When using VS Code, press `F5` and select **Run The Wandering Wyvern**. The repo
 `.vscode` setup builds the Web host, starts it with the Development environment, and opens the
 local URL automatically.
 
+### Browser regression tests
+
+The repository includes C# Playwright smoke tests for the responsive navbar and loading overlay.
+Install the Chromium browser once after building the solution. The tests use MSTest and can be
+executed through either `dotnet test` or VSTest:
+
+```powershell
+dotnet build WanderingWyvern.slnx
+pwsh .\WanderingWyvern.Web.Tests\bin\Debug\net10.0\playwright.ps1 install chromium
+dotnet test WanderingWyvern.Web.Tests\WanderingWyvern.Web.Tests.csproj
+# Or, after building:
+dotnet vstest WanderingWyvern.Web.Tests\bin\Debug\net10.0\WanderingWyvern.Web.Tests.dll
+```
+
 ### In the Dev Container
 
-`WanderingWyvern.Web/bin` and `WanderingWyvern.Web/obj` are mounted as container-managed volumes to
-avoid Windows bind-mount timestamp/permission issues with `dotnet watch`.
+All project `bin` and `obj` directories are mounted as container-managed volumes to avoid Windows
+bind-mount timestamp/permission issues with `dotnet watch` and solution-level builds.
 
 Then run the app in the container:
 
 ```bash
 dotnet watch run --project /workspaces/WanderingWyvern.Web
 ```
+
+The dev container's `postCreateCommand` restores and builds the browser-test project, then force
+installs Playwright Chromium, including its headless shell and Linux dependencies. This also repairs
+an incomplete browser cache when the container is recreated. Run the browser regressions with:
+
+```bash
+dotnet test /workspaces/WanderingWyvern.Web.Tests/WanderingWyvern.Web.Tests.csproj
+```
+
+After changing the devcontainer configuration, use **Dev Containers: Rebuild Container** so the
+Linux build-output volumes are created.
 
 ## Live notes
 

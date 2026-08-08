@@ -7,7 +7,9 @@
 	"workspaceFolder": "/workspaces",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	"features": {},
+	"features": {
+		"ghcr.io/devcontainers/features/powershell:1": {}
+	},
 
 	// Avoid hardcoded ports. VS Code auto-forwards ports detected from running processes.
 	"portsAttributes": {
@@ -17,7 +19,7 @@
 	},
 
 	// Restore dependencies after the container is created.
-	"postCreateCommand": "dotnet restore /workspaces/WanderingWyvern.slnx",
+	"postCreateCommand": "dotnet restore /workspaces/WanderingWyvern.slnx && dotnet build /workspaces/WanderingWyvern.Web.Tests/WanderingWyvern.Web.Tests.csproj --no-restore && pwsh /workspaces/WanderingWyvern.Web.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps --force chromium",
 
 	// Configure tool-specific properties.
 	"customizations": {
