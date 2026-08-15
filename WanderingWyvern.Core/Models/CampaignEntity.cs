@@ -17,6 +17,8 @@ public sealed class CampaignEntity
 
     public required IReadOnlyList<string> Images { get; init; }
 
+    public IReadOnlyList<string> Maps { get; init; } = [];
+
     public string? IconImage { get; init; }
 
     public CampaignDocument? PrimaryDocument
@@ -39,5 +41,5 @@ public sealed class CampaignEntity
         }
     }
 
-    public string? CardImage => IconImage ?? Images.FirstOrDefault();
+    public string? CardImage => IconImage ?? Images.FirstOrDefault() ?? Maps.FirstOrDefault();
 }

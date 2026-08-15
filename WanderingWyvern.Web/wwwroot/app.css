@@ -659,6 +659,94 @@ a:hover {
     padding: 1rem 0;
 }
 
+/* --- Location maps --- */
+
+.location-maps {
+    margin-top: 2rem;
+}
+
+.location-maps h2 {
+    margin-bottom: 1rem;
+}
+
+.location-map-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.location-map-button {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--parchment-2);
+    color: var(--gold-bright);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.location-map-button:hover {
+    border-color: var(--gold);
+    box-shadow: var(--shadow-deep);
+}
+
+.location-map-button img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: contain;
+    background: var(--parchment-3);
+}
+
+.location-map-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: rgba(0, 0, 0, 0.78);
+}
+
+.location-map-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(1400px, 100%);
+    max-height: 95vh;
+    overflow: hidden;
+    background: var(--parchment-1);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: var(--shadow-deep);
+}
+
+.location-map-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.location-map-modal-header h2 {
+    margin: 0;
+}
+
+.location-map-modal-body {
+    overflow: auto;
+    padding: 1rem;
+    text-align: center;
+}
+
+.location-map-modal-body img {
+    max-width: 100%;
+    height: auto;
+}
+
 /* --- Session split-pane --- */
 
 .back-link {
@@ -764,6 +852,19 @@ a:hover {
 
 .split-pane-column details > *:not(summary):first-of-type {
     margin-top: 0.75rem;
+}
+
+.recap-panel {
+    margin-top: 1.5rem;
+    padding: 1.25rem 1.75rem;
+    background: var(--parchment-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    box-shadow: var(--shadow-deep);
+}
+
+.recap-panel h2 {
+    margin-top: 0;
 }
 
 /* --- Campaign reference dialog --- */

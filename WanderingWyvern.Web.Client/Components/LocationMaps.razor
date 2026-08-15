@@ -1,0 +1,69 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@inject CampaignClientState CampaignState
+
+<section class="location-maps" aria-labelledby="location-maps-title">
+    <h2 id="location-maps-title">Kaarten</h2>
+    <div class="location-map-grid">
+        @foreach (var map in _maps)
+        {
+            <button type="button" class="location-map-button" @onclick="() => OpenMap(map)">
+                <img src="@map.Url" alt="@map.Title" loading="lazy" />
+                <span>@map.Title</span>
+            </button>
+        }
+    </div>
+</section>
+
+@if (_selectedMap is not null)
+{
+    <div class="location-map-backdrop" @onclick="CloseMap">
+        <section class="location-map-modal" role="dialog" aria-modal="true" aria-labelledby="location-map-title" @onclick:stopPropagation>
+            <div class="location-map-modal-header">
+                <h2 id="location-map-title">@_selectedMap.Title</h2>
+                <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="CloseMap">×</button>
+            </div>
+            <div class="location-map-modal-body">
+                <img src="@_selectedMap.Url" alt="@_selectedMap.Title" />
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public required IReadOnlyList<string> Maps { get; set; }
+
+    private readonly List<MapPreview> _maps = [];
+    private MapPreview? _selectedMap;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _maps.Clear();
+        foreach (var path in Maps)
+        {
+            _maps.Add(new MapPreview(
+                path,
+                await CampaignState.ReadAssetUrlAsync(path),
+                CreateTitle(path)));
+        }
+
+        if (_selectedMap is not null && !_maps.Any(map => map.Path.Equals(_selectedMap.Path, StringComparison.OrdinalIgnoreCase)))
+            _selectedMap = null;
+    }
+
+    private void OpenMap(MapPreview map) => _selectedMap = map;
+
+    private void CloseMap() => _selectedMap = null;
+
+    private static string CreateTitle(string path)
+    {
+        var name = Path.GetFileNameWithoutExtension(path);
+        if (name.EndsWith(".map", StringComparison.OrdinalIgnoreCase))
+            name = name[..^4];
+
+        var title = name.Replace('-', ' ').Replace('_', ' ');
+        return string.IsNullOrWhiteSpace(title) ? "Kaart" : title;
+    }
+
+    private sealed record MapPreview(string Path, string Url, string Title);
+}

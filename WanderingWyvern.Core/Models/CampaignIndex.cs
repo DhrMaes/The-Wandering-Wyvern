@@ -39,6 +39,11 @@ public sealed class CampaignIndex
             ?.PrimaryDocument;
     }
 
+    public CampaignEntity? FindEntityForDocument(string relativePath) =>
+        AllEntities().FirstOrDefault(entity =>
+            entity.Documents.Values.Any(document =>
+                string.Equals(document.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase)));
+
     private IEnumerable<CampaignEntity> AllEntities() =>
         Sessions
             .Concat(Npcs)

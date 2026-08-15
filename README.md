@@ -41,7 +41,8 @@ content repository it's pointed at to follow this folder layout (as used by, e.g
 │   └── 📂 <name>/
 │       ├── 📄 description.md
 │       ├── 📄 floor-plan.md
-│       └── 🖼️ map.png
+│       ├── 🖼️ <name>.png
+│       └── 🗺️ <name>.map.png
 ├── 📂 Lore/
 │   ├── 📂 <topic>/
 │   │   └── 📄 <topic>.md
@@ -82,6 +83,9 @@ automatically:
   `princess-bibeth.icon.jpg`). A square crop meant for compact card grids and session lists. When
   present, the card grid prefers the icon over the full image; when absent, it falls back to the
   full image, then to a placeholder glyph.
+- **Location map** — any image in a location folder whose filename ends with `.map` before the
+  extension (e.g. `docks.map.webp`). Maps appear in a gallery when opening that location and are
+  excluded from the location card image selection.
 
 ## Running it
 

@@ -30,6 +30,14 @@
             </div>
         </div>
 
+        @if (_recapHtml is not null)
+        {
+            <section class="recap-panel">
+                <h2>Recap</h2>
+                <CampaignReferenceContent Html="@_recapHtml" />
+            </section>
+        }
+
         <div class="live-notes">
             <h2>Live notities (voor de recap)</h2>
             @if (!string.IsNullOrWhiteSpace(_existingNotes))
@@ -49,6 +57,7 @@
     private CampaignEntity? _session;
     private string? _outlineHtml;
     private string? _scriptHtml;
+    private string? _recapHtml;
     private string? _existingNotes;
     private string _newNote = string.Empty;
 
@@ -81,6 +90,15 @@
     {
         _outlineHtml = await RenderDocumentAsync("outline");
         _scriptHtml = await RenderDocumentAsync("script");
+        _recapHtml = await RenderOptionalDocumentAsync("recap");
+    }
+
+    private async Task<string?> RenderOptionalDocumentAsync(string fileName)
+    {
+        if (_session is null || !_session.Documents.TryGetValue(fileName, out var document))
+            return null;
+
+        return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
     }
 
     private async Task<string> RenderDocumentAsync(string fileName)

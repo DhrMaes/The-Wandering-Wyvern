@@ -24,6 +24,10 @@
         <article class="markdown-document">
             <CampaignReferenceContent Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")" />
         </article>
+        @if (_locationMaps.Count > 0)
+        {
+            <LocationMaps Maps="_locationMaps" />
+        }
     }
 </div>
 
@@ -32,6 +36,8 @@
     public required string RelativePath { get; set; }
 
     private CampaignDocument? _document;
+    private CampaignEntity? _location;
+    private IReadOnlyList<string> _locationMaps = [];
     private string? _renderedHtml;
 
     protected override async Task OnParametersSetAsync()
@@ -47,9 +53,22 @@
     private async Task LoadDocumentAsync()
     {
         _document = CampaignState.Current?.FindDocument(RelativePath);
+        _location = CampaignState.Current?.FindEntityForDocument(RelativePath);
         _renderedHtml = _document is not null && CampaignState.Current is not null
             ? await Renderer.RenderToHtmlAsync(_document, CampaignState.Current)
             : null;
+        _locationMaps = _location?.Maps
+            .Where(map => _renderedHtml is null || !ContainsImageReference(_renderedHtml, map))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray()
+            ?? [];
+    }
+
+    private static bool ContainsImageReference(string html, string relativePath)
+    {
+        var fileName = Path.GetFileName(relativePath);
+        return html.Contains(fileName, StringComparison.OrdinalIgnoreCase)
+            || html.Contains(Uri.EscapeDataString(fileName), StringComparison.OrdinalIgnoreCase);
     }
 
     private async void HandleChanged()

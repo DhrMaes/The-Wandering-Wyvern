@@ -84,6 +84,7 @@ public sealed class CampaignIndexBuilder
     {
         var documents = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase);
         var images = new List<string>();
+        var maps = new List<string>();
         string? iconImage = null;
 
         foreach (var file in files.Where(path => GetDirectory(path).Equals(folderPath, StringComparison.OrdinalIgnoreCase)))
@@ -95,7 +96,9 @@ public sealed class CampaignIndexBuilder
             }
             else if (IsImage(file))
             {
-                if (IsIconImage(file) && iconImage is null)
+                if (type == CampaignEntityType.Location && IsMapImage(file))
+                    maps.Add(file);
+                else if (IsIconImage(file) && iconImage is null)
                     iconImage = file;
                 else
                     images.Add(file);
@@ -114,6 +117,7 @@ public sealed class CampaignIndexBuilder
             RelativeFolderPath = folderPath,
             Documents = documents,
             Images = images,
+            Maps = maps,
             IconImage = iconImage
         };
     }
@@ -127,11 +131,28 @@ public sealed class CampaignIndexBuilder
         var document = documentsByPath[filePath];
         var fileName = GetFileNameWithoutExtension(filePath);
         var directory = GetDirectory(filePath);
-        var images = files
+        var imageCandidates = files
             .Where(path => GetDirectory(path).Equals(directory, StringComparison.OrdinalIgnoreCase))
             .Where(path => IsImage(path) && GetImageBaseName(path).Equals(fileName, StringComparison.OrdinalIgnoreCase))
-            .Where(path => !IsIconImage(path))
+            .Where(path => !IsIconImage(path) && (type != CampaignEntityType.Location || !IsMapImage(path)))
             .ToList();
+        if (type == CampaignEntityType.Location && imageCandidates.Count == 0)
+        {
+            imageCandidates = files
+                .Where(path => GetDirectory(path).Equals(directory, StringComparison.OrdinalIgnoreCase))
+                .Where(path => IsImage(path) && !IsIconImage(path))
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Take(1)
+                .ToList();
+        }
+        var images = imageCandidates;
+        var maps = type == CampaignEntityType.Location
+            ? files
+                .Where(path => GetDirectory(path).Equals(directory, StringComparison.OrdinalIgnoreCase))
+                .Where(path => IsImage(path) && IsMapImage(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+            : [];
         var icon = files
             .FirstOrDefault(path => GetDirectory(path).Equals(directory, StringComparison.OrdinalIgnoreCase)
                 && IsImage(path)
@@ -149,6 +170,7 @@ public sealed class CampaignIndexBuilder
                 [document.FileName] = document
             },
             Images = images,
+            Maps = maps,
             IconImage = icon
         };
     }
@@ -209,6 +231,9 @@ public sealed class CampaignIndexBuilder
 
     private static bool IsIconImage(string path) =>
         Path.GetFileNameWithoutExtension(path).EndsWith(".icon", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsMapImage(string path) =>
+        Path.GetFileNameWithoutExtension(path).EndsWith(".map", StringComparison.OrdinalIgnoreCase);
 
     private static string GetImageBaseName(string path)
     {
