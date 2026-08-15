@@ -8,7 +8,7 @@
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
-		"ghcr.io/devcontainers/features/powershell:1": {}
+		"ghcr.io/devcontainers/features/powershell:2": {}
 	},
 
 	// Avoid hardcoded ports. VS Code auto-forwards ports detected from running processes.
