@@ -21,20 +21,29 @@
 
         <div class="split-pane">
             <div class="split-pane-column outline-column">
-                <h2>Outline (regie)</h2>
-                <CampaignReferenceContent Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")" />
+                <EditableDocument RelativePath="@($"Sessions/{Slug}/outline.md")" Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")">
+                    <Header>
+                        <h2>Outline (regie)</h2>
+                    </Header>
+                </EditableDocument>
             </div>
             <div class="split-pane-column script-column">
-                <h2>Voorleesscript</h2>
-                <CampaignReferenceContent Html="@(_scriptHtml ?? "<p><em>Laden...</em></p>")" />
+                <EditableDocument RelativePath="@($"Sessions/{Slug}/script.md")" Html="@(_scriptHtml ?? "<p><em>Laden...</em></p>")">
+                    <Header>
+                        <h2>Voorleesscript</h2>
+                    </Header>
+                </EditableDocument>
             </div>
         </div>
 
         @if (_recapHtml is not null)
         {
             <section class="recap-panel">
-                <h2>Recap</h2>
-                <CampaignReferenceContent Html="@_recapHtml" />
+                <EditableDocument RelativePath="@($"Sessions/{Slug}/recap.md")" Html="@_recapHtml">
+                    <Header>
+                        <h2>Recap</h2>
+                    </Header>
+                </EditableDocument>
             </section>
         }
 

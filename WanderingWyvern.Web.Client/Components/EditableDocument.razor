@@ -1,0 +1,70 @@
+@inject CampaignClientState CampaignState
+
+<div class="editable-document">
+    @if (Header is not null)
+    {
+        <div class="editable-document-header-row">
+            <div class="editable-document-header-content">
+                @Header
+            </div>
+            @if (!_isEditing)
+            {
+                <div class="editable-document-actions">
+                    <button @onclick="BeginEdit">Bewerken</button>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_isEditing)
+    {
+        <div class="editable-document-edit">
+            <textarea @bind="_markdownContent" placeholder="Typ je tekst hier in Markdown..."></textarea>
+            <div class="editable-document-edit-buttons">
+                <button class="save-button" @onclick="SaveAsync">Opslaan</button>
+                <button class="cancel-button" @onclick="CancelEdit">Annuleren</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @if (Header is null)
+        {
+            <div class="editable-document-actions">
+                <button @onclick="BeginEdit">Bewerken</button>
+            </div>
+        }
+        <CampaignReferenceContent Html="@Html" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public required string RelativePath { get; set; }
+
+    [Parameter]
+    public string? Html { get; set; }
+
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    private bool _isEditing;
+    private string _markdownContent = string.Empty;
+
+    private async Task BeginEdit()
+    {
+        _markdownContent = await CampaignState.ReadDocumentAsync(RelativePath) ?? string.Empty;
+        _isEditing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _isEditing = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        await CampaignState.WriteDocumentAsync(RelativePath, _markdownContent);
+        _isEditing = false;
+    }
+}

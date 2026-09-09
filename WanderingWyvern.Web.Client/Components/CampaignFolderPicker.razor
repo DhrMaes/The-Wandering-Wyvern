@@ -38,12 +38,12 @@
                 </div>
             </div>
 
-            <button class="folder-primary-button" @onclick="ChooseFolderAsync" disabled="@_isBusy">
+            <button class="btn-primary" @onclick="ChooseFolderAsync" disabled="@_isBusy">
                 @(_isBusy ? "Campagne wordt geopend..." : "Campagnemap kiezen")
             </button>
             @if (CampaignState.CanRestoreSavedFolder)
             {
-                <button class="button-secondary" @onclick="RestoreFolderAsync" disabled="@_isBusy">
+                <button class="btn-secondary" @onclick="RestoreFolderAsync" disabled="@_isBusy">
                     Vorige campagne openen
                 </button>
             }
@@ -62,7 +62,7 @@
                 <button @onclick="RefreshAsync" disabled="@_isBusy">
                     @(_isBusy ? "Vernieuwen..." : "Vernieuwen")
                 </button>
-                <button class="button-secondary" @onclick="ChooseFolderAsync" disabled="@_isBusy">
+                <button class="btn-secondary" @onclick="ChooseFolderAsync" disabled="@_isBusy">
                     Andere map kiezen
                 </button>
             </div>

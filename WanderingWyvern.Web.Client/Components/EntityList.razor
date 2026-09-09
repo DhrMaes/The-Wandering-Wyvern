@@ -1,8 +1,23 @@
 @namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@using DhrMaes.WanderingWyvern.Web.Client.Models
+@inject CampaignClientState CampaignState
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<div class="entity-list-header">
+    <h2 id="@Id">@Title</h2>
+    @if (!string.IsNullOrEmpty(FolderName))
+    {
+        <button class="btn-secondary btn-sm" @onclick="CreateNewEntity" title="Nieuw toevoegen">
+            + Toevoegen
+        </button>
+    }
+
+    <EntityCreateModal @ref="_createModal" />
+</div>
 
 @if (Entities.Count > 0)
 {
-    <h2 id="@Id">@Title</h2>
     <div class="card-grid">
         @foreach (var entity in Entities)
         {
@@ -16,6 +31,10 @@
         }
     </div>
 }
+else
+{
+    <p class="empty-state">Nog geen @Title.ToLower() gevonden.</p>
+}
 
 @code {
     [Parameter, EditorRequired]
@@ -24,9 +43,228 @@
     [Parameter]
     public string? Id { get; set; }
 
+    [Parameter]
+    public string? FolderName { get; set; }
+
     [Parameter, EditorRequired]
     public required IReadOnlyList<CampaignEntity> Entities { get; set; }
 
     [Parameter]
     public string PlaceholderIcon { get; set; } = "🐉";
+
+    private EntityCreateModal _createModal = default!;
+
+    private async Task CreateNewEntity()
+    {
+        if (string.IsNullOrWhiteSpace(FolderName)) return;
+
+        var result = await _createModal.ShowAsync(Title, FolderName);
+        if (result == null || string.IsNullOrWhiteSpace(result.Title))
+        {
+            return;
+        }
+
+        var title = result.Title;
+        var slug = title.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("'", "")
+            .Replace("\"", "")
+            .Replace(":", "")
+            .Replace("?", "")
+            .Replace("!", "");
+
+        if (FolderName.ToLowerInvariant() == "npcs")
+        {
+            var folder = result.IsNamedNpc ? $"{FolderName}/{slug}" : FolderName;
+            var path = $"{folder}/{slug}.md";
+            
+            var content = $"# {title}\n\n";
+            content += $"Basis: {(string.IsNullOrWhiteSpace(result.NpcClass) ? "N/A" : result.NpcClass)}, {(string.IsNullOrWhiteSpace(result.NpcJob) ? "N/A" : result.NpcJob)}\n";
+            if (!string.IsNullOrWhiteSpace(result.NpcRace)) content += $"Ras: {result.NpcRace}\n";
+            if (!string.IsNullOrWhiteSpace(result.NpcFaction)) content += $"Factie: {result.NpcFaction}\n";
+            content += "\n## Uiterlijk\n\n";
+            content += "## Persoonlijkheid\n\n";
+            content += "## Achtergrond\n\n";
+            content += "## Geheimen\n\n";
+            content += "## Vaardigheden / Stat block\n\n";
+            
+            await CampaignState.WriteDocumentAsync(path, content);
+            
+            if (result.IsNamedNpc)
+            {
+                var logboekPath = $"{folder}/logboek.md";
+                var logboekContent = $"# Logboek: {title}\n\n- \n";
+                await CampaignState.WriteDocumentAsync(logboekPath, logboekContent);
+            }
+            
+            var imagePromptPath = $"{folder}/{slug}.image-prompt.md";
+            var imagePromptContent = $@"# Image Generation Prompt
+
+Aspect ratio: 3:4
+
+Description: 
+A high fantasy portrait of {title}.
+Class / Social Standing: {(string.IsNullOrWhiteSpace(result.NpcClass) ? "N/A" : result.NpcClass)}
+Profession/Title: {(string.IsNullOrWhiteSpace(result.NpcJob) ? "N/A" : result.NpcJob)}
+{(string.IsNullOrWhiteSpace(result.NpcRace) ? "" : $"Race/Species: {result.NpcRace}\n")}
+Nameplate: The image should prominently feature a fantasy nameplate at the bottom with the text ""{title}"".";
+            await CampaignState.WriteDocumentAsync(imagePromptPath, imagePromptContent);
+        }
+        else
+        {
+            var folder = $"{FolderName}/{slug}";
+            var path = $"{folder}/{slug}.md";
+            var content = $"# {title}\n\n";
+            
+            switch (FolderName?.ToLowerInvariant())
+            {
+                case "locations":
+                case "locaties":
+                    if (!string.IsNullOrWhiteSpace(result.LocationType)) content += $"Type: {result.LocationType}\n";
+                    if (!string.IsNullOrWhiteSpace(result.LocationRegion)) content += $"Regio: {result.LocationRegion}\n";
+                    if (!string.IsNullOrWhiteSpace(result.LocationAtmosphere)) content += $"Sfeer: {result.LocationAtmosphere}\n";
+                    if (!string.IsNullOrWhiteSpace(result.LocationRuler)) content += $"Beheerder/Heerser: {result.LocationRuler}\n";
+                    content += "\n## Beschrijving\n\n";
+                    content += "## Geschiedenis\n\n";
+                    content += "## Belangrijke NPCs\n\n";
+                    content += "## Geheimen / Plot hooks\n\n";
+                    break;
+
+                case "lore":
+                    if (!string.IsNullOrWhiteSpace(result.LoreCategory)) content += $"Categorie: {result.LoreCategory}\n";
+                    if (!string.IsNullOrWhiteSpace(result.LoreEra)) content += $"Tijdperk: {result.LoreEra}\n";
+                    if (!string.IsNullOrWhiteSpace(result.LoreEntities)) content += $"Betrokken partijen: {result.LoreEntities}\n";
+                    content += "\n## Samenvatting\n\n";
+                    content += "## Geschiedenis\n\n";
+                    content += "## Huidige Status\n\n";
+                    break;
+
+                case "pcs":
+                    content += $"Speler: {(string.IsNullOrWhiteSpace(result.PlayerName) ? "N/A" : result.PlayerName)}\n";
+                    content += $"Race: {(string.IsNullOrWhiteSpace(result.PcRace) ? "N/A" : result.PcRace)}\n";
+                    content += $"Class: {(string.IsNullOrWhiteSpace(result.PcClass) ? "N/A" : result.PcClass)}{(string.IsNullOrWhiteSpace(result.PcSubclass) ? "" : $" ({result.PcSubclass})")}\n";
+                    if (!string.IsNullOrWhiteSpace(result.PcLevel)) content += $"Level: {result.PcLevel}\n";
+                    content += "\n## Uiterlijk\n\n";
+                    content += "## Persoonlijkheid\n\n";
+                    content += "## Achtergrond / Backstory\n\n";
+                    content += "## Doelen\n\n";
+                    break;
+
+                case "items":
+                    if (!string.IsNullOrWhiteSpace(result.ItemType)) content += $"Type: {result.ItemType}\n";
+                    if (!string.IsNullOrWhiteSpace(result.ItemRarity)) content += $"Zeldzaamheid: {result.ItemRarity}\n";
+                    if (result.RequiresAttunement)
+                    {
+                        var attunementDesc = string.IsNullOrWhiteSpace(result.AttunementDetails) ? "Ja" : $"Ja ({result.AttunementDetails})";
+                        content += $"Attunement: {attunementDesc}\n";
+                    }
+                    if (!string.IsNullOrWhiteSpace(result.ItemValue)) content += $"Waarde: {result.ItemValue}\n";
+                    content += "\n";
+
+                    switch (result.ItemType?.ToLowerInvariant())
+                    {
+                        case "weapon":
+                            if (!string.IsNullOrWhiteSpace(result.WeaponCategory)) content += $"- **Categorie:** {result.WeaponCategory}\n";
+                            if (!string.IsNullOrWhiteSpace(result.WeaponDamage)) content += $"- **Schade:** {result.WeaponDamage}{(string.IsNullOrWhiteSpace(result.WeaponDamageType) ? "" : $" {result.WeaponDamageType}")}\n";
+                            if (!string.IsNullOrWhiteSpace(result.WeaponRange)) content += $"- **Bereik:** {result.WeaponRange}\n";
+                            if (!string.IsNullOrWhiteSpace(result.WeaponProperties)) content += $"- **Eigenschappen:** {result.WeaponProperties}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Magische / Bijzondere Eigenschappen\n\n";
+                            content += "## Geschiedenis\n\n";
+                            break;
+
+                        case "armor":
+                            if (!string.IsNullOrWhiteSpace(result.ArmorCategory)) content += $"- **Categorie:** {result.ArmorCategory}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ArmorAc)) content += $"- **Armor Class (AC):** {result.ArmorAc}\n";
+                            if (!string.IsNullOrWhiteSpace(result.StrengthRequirement)) content += $"- **Krachtvereiste:** {result.StrengthRequirement}\n";
+                            content += $"- **Stealth:** {(result.StealthDisadvantage ? "Nadeel (Disadvantage)" : "Normaal")}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Eigenschappen & Bonussen\n\n";
+                            content += "## Geschiedenis\n\n";
+                            break;
+
+                        case "potion":
+                            if (!string.IsNullOrWhiteSpace(result.PotionForm)) content += $"- **Vorm:** {result.PotionForm}\n";
+                            if (!string.IsNullOrWhiteSpace(result.PotionEffect)) content += $"- **Werking:** {result.PotionEffect}\n";
+                            if (!string.IsNullOrWhiteSpace(result.PotionDuration)) content += $"- **Duur:** {result.PotionDuration}\n";
+                            content += "\n## Beschrijving & Smaak\n\n";
+                            content += "## Werking & Toediening\n\n";
+                            content += "## Brouw-instructies / Ingrediënten\n\n";
+                            break;
+
+                        case "ring":
+                            if (!string.IsNullOrWhiteSpace(result.ItemCharges)) content += $"- **Charges / Gebruik:** {result.ItemCharges}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemEffect)) content += $"- **Effect:** {result.ItemEffect}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Magische Werking\n\n";
+                            content += "## Geschiedenis & Vorige Dragers\n\n";
+                            break;
+
+                        case "wand/staff":
+                            if (!string.IsNullOrWhiteSpace(result.ItemCharges)) content += $"- **Charges:** {result.ItemCharges}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemRecharge)) content += $"- **Herladen:** {result.ItemRecharge}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemSpellsAbilities)) content += $"- **Spells / Vaardigheden:** {result.ItemSpellsAbilities}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemEffect)) content += $"- **Bonus / Effect:** {result.ItemEffect}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Spells & Effecten\n\n";
+                            content += "## Geschiedenis\n\n";
+                            break;
+
+                        case "scroll":
+                            if (!string.IsNullOrWhiteSpace(result.ScrollSpellName)) content += $"- **Spell:** {result.ScrollSpellName}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ScrollSpellLevel)) content += $"- **Level:** {result.ScrollSpellLevel}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ScrollMagicSchool)) content += $"- **School:** {result.ScrollMagicSchool}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Spell Effect\n\n";
+                            content += "## Activering & Regels\n\n";
+                            break;
+
+                        case "wondrous item":
+                            if (!string.IsNullOrWhiteSpace(result.ItemSlot)) content += $"- **Slot / Dragen:** {result.ItemSlot}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemCharges)) content += $"- **Charges / Gebruik:** {result.ItemCharges}\n";
+                            if (!string.IsNullOrWhiteSpace(result.ItemEffect)) content += $"- **Effect:** {result.ItemEffect}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Magische Eigenschappen\n\n";
+                            content += "## Geschiedenis\n\n";
+                            break;
+
+                        case "material":
+                            if (!string.IsNullOrWhiteSpace(result.MaterialCategory)) content += $"- **Categorie:** {result.MaterialCategory}\n";
+                            if (!string.IsNullOrWhiteSpace(result.MaterialSource)) content += $"- **Herkomst / Vindplaats:** {result.MaterialSource}\n";
+                            if (!string.IsNullOrWhiteSpace(result.CraftingUsage)) content += $"- **Crafting:** {result.CraftingUsage}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Oogsten / Verwerken\n\n";
+                            content += "## Eigenschappen & Toepassingen\n\n";
+                            break;
+
+                        case "trinket":
+                            if (!string.IsNullOrWhiteSpace(result.TrinketOrigin)) content += $"- **Herkomst:** {result.TrinketOrigin}\n";
+                            if (!string.IsNullOrWhiteSpace(result.TrinketQuirk)) content += $"- **Bijzonderheid / Quirk:** {result.TrinketQuirk}\n";
+                            content += "\n## Beschrijving\n\n";
+                            content += "## Bijzondere Eigenschappen\n\n";
+                            content += "## Mogelijke Betekenis / Plot Hook\n\n";
+                            break;
+
+                        default:
+                            content += "## Beschrijving\n\n";
+                            content += "## Stats & Mechanics\n\n";
+                            content += "## Waarde / Zeldzaamheid\n\n";
+                            content += "## Geschiedenis\n\n";
+                            break;
+                    }
+                    break;
+
+                case "handouts":
+                    if (!string.IsNullOrWhiteSpace(result.HandoutType)) content += $"Type: {result.HandoutType}\n";
+                    if (!string.IsNullOrWhiteSpace(result.HandoutAuthor)) content += $"Auteur: {result.HandoutAuthor}\n";
+                    if (!string.IsNullOrWhiteSpace(result.HandoutRecipient)) content += $"Bestemmeling: {result.HandoutRecipient}\n";
+                    if (!string.IsNullOrWhiteSpace(result.HandoutLanguage)) content += $"Taal: {result.HandoutLanguage}\n";
+                    content += "\n## Inhoud\n\n";
+                    content += "> Hier komt de tekst van de handout...\n\n";
+                    content += "## Context (DM notes)\n\n";
+                    break;
+            }
+            await CampaignState.WriteDocumentAsync(path, content);
+        }
+    }
 }

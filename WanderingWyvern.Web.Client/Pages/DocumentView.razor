@@ -17,12 +17,15 @@
     }
     else
     {
-        @if (!_document.HasExplicitTitle)
-        {
-            <h1>@_document.Title</h1>
-        }
         <article class="markdown-document">
-            <CampaignReferenceContent Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")" />
+            <EditableDocument RelativePath="@RelativePath" Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")">
+                <Header>
+                    @if (!_document.HasExplicitTitle)
+                    {
+                        <h1>@_document.Title</h1>
+                    }
+                </Header>
+            </EditableDocument>
         </article>
         @if (_locationMaps.Count > 0)
         {

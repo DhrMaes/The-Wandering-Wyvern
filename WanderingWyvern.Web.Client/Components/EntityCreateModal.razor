@@ -1,0 +1,799 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@using DhrMaes.WanderingWyvern.Web.Client.Models
+
+@if (IsVisible)
+{
+    <div class="campaign-reference-backdrop" @onclick="Cancel">
+        <section class="entity-create-modal" role="dialog" aria-modal="true" aria-labelledby="create-entity-title" @onclick:stopPropagation>
+            <div class="campaign-reference-modal-header">
+                <h2 id="create-entity-title" style="margin: 0;">Nieuwe @EntityName toevoegen</h2>
+                <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="Cancel">×</button>
+            </div>
+            <div class="entity-create-modal-body">
+                <div>
+                    <label for="entityTitle" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Titel</label>
+                    <input type="text" id="entityTitle" class="entity-create-input" @bind="Title" @bind:event="oninput" @onkeyup="HandleKeyUp" autofocus placeholder="Naam van de entiteit..." />
+                </div>
+                
+                @if (FolderName?.ToLowerInvariant() == "npcs")
+                {
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type NPC</label>
+                        <div style="display: flex; gap: 1.5rem;">
+                            <label class="entity-create-checkbox-label">
+                                <input type="radio" name="npcType" checked="@IsNamedNpc" @onchange="@(() => IsNamedNpc = true)" /> Named NPC
+                            </label>
+                            <label class="entity-create-checkbox-label">
+                                <input type="radio" name="npcType" checked="@(!IsNamedNpc)" @onchange="@(() => IsNamedNpc = false)" /> Generic Archetype
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="npcClass" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Klasse (Social Class)</label>
+                            <select id="npcClass" class="entity-create-input" @bind="NpcClass">
+                                <option value="">Selecteer Klasse...</option>
+                                <option value="First Class (Rijk/Machtig)">First Class (Rijk / Machtig)</option>
+                                <option value="Second Class (Middenklasse)">Second Class (Middenklasse)</option>
+                                <option value="Third Class (Arm/Onbevoorrecht)">Third Class (Arm / Onbevoorrecht)</option>
+                                <option value="N/A (Creature/Monster)">N/A (Creature / Niet-menselijk)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="npcJob" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Beroep / Titel</label>
+                            <input type="text" id="npcJob" class="entity-create-input" @bind="NpcJob" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Smid, Eerste Minister, Wachter..." />
+                        </div>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="npcRace" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Ras / Species</label>
+                            <input type="text" id="npcRace" class="entity-create-input" @bind="NpcRace" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Mens, Elf, Dwerg, Draak..." />
+                        </div>
+                        <div>
+                            <label for="npcFaction" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Factie / Alliantie</label>
+                            <input type="text" id="npcFaction" class="entity-create-input" @bind="NpcFaction" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Harpers, Stadsraad..." />
+                        </div>
+                    </div>
+                }
+                else if (FolderName?.ToLowerInvariant() == "pcs")
+                {
+                    <div>
+                        <label for="playerName" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Speler (Player Name)</label>
+                        <input type="text" id="playerName" class="entity-create-input" @bind="PlayerName" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Jan" />
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="pcRace" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Race</label>
+                            <input type="text" id="pcRace" class="entity-create-input" @bind="PcRace" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Human, Elf, Dwarf..." />
+                        </div>
+                        <div>
+                            <label for="pcClass" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Class</label>
+                            <select id="pcClass" class="entity-create-input" @bind="PcClass">
+                                <option value="">Selecteer Class...</option>
+                                <option value="Barbarian">Barbarian</option>
+                                <option value="Bard">Bard</option>
+                                <option value="Cleric">Cleric</option>
+                                <option value="Druid">Druid</option>
+                                <option value="Fighter">Fighter</option>
+                                <option value="Monk">Monk</option>
+                                <option value="Paladin">Paladin</option>
+                                <option value="Ranger">Ranger</option>
+                                <option value="Rogue">Rogue</option>
+                                <option value="Sorcerer">Sorcerer</option>
+                                <option value="Warlock">Warlock</option>
+                                <option value="Wizard">Wizard</option>
+                                <option value="Artificer">Artificer</option>
+                                <option value="Blood Hunter">Blood Hunter</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="pcSubclass" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Subklasse / Archetype</label>
+                            <input type="text" id="pcSubclass" class="entity-create-input" @bind="PcSubclass" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Battle Master, Evocation..." />
+                        </div>
+                        <div>
+                            <label for="pcLevel" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Level</label>
+                            <input type="text" id="pcLevel" class="entity-create-input" @bind="PcLevel" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 3" />
+                        </div>
+                    </div>
+                }
+                else if (FolderName?.ToLowerInvariant() == "locations")
+                {
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="locationType" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type Locatie</label>
+                            <select id="locationType" class="entity-create-input" @bind="LocationType">
+                                <option value="">Selecteer Type...</option>
+                                <option value="City">Stad (City)</option>
+                                <option value="Town">Dorp (Town)</option>
+                                <option value="Village">Gehucht (Village)</option>
+                                <option value="Dungeon">Dungeon</option>
+                                <option value="Tavern">Taveerne / Herberg</option>
+                                <option value="Shop">Winkel (Shop)</option>
+                                <option value="Region">Regio (Region)</option>
+                                <option value="Point of Interest">Bezienswaardigheid (POI)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="locationRegion" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Regio / Bovenliggend</label>
+                            <input type="text" id="locationRegion" class="entity-create-input" @bind="LocationRegion" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Sword Coast..." />
+                        </div>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="locationAtmosphere" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Sfeer / Toon</label>
+                            <input type="text" id="locationAtmosphere" class="entity-create-input" @bind="LocationAtmosphere" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Mystiek, Gevaarlijk, Druk..." />
+                        </div>
+                        <div>
+                            <label for="locationRuler" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Beheerder / Heerser</label>
+                            <input type="text" id="locationRuler" class="entity-create-input" @bind="LocationRuler" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Burgemeester, Dievengilde..." />
+                        </div>
+                    </div>
+                }
+                else if (FolderName?.ToLowerInvariant() == "lore")
+                {
+                    <div>
+                        <label for="loreCategory" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Categorie</label>
+                        <select id="loreCategory" class="entity-create-input" @bind="LoreCategory">
+                            <option value="">Selecteer Categorie...</option>
+                            <option value="History">Geschiedenis</option>
+                            <option value="Faction">Factie / Organisatie</option>
+                            <option value="Magic">Magie / Fenomeen</option>
+                            <option value="Religion">Religie / Goden</option>
+                            <option value="Myth">Mythe / Legende</option>
+                            <option value="Event">Gebeurtenis</option>
+                        </select>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="loreEra" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Tijdperk / Periode</label>
+                            <input type="text" id="loreEra" class="entity-create-input" @bind="LoreEra" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. De Oude Oorlog, Huidige Era..." />
+                        </div>
+                        <div>
+                            <label for="loreEntities" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Betrokken Partijen</label>
+                            <input type="text" id="loreEntities" class="entity-create-input" @bind="LoreEntities" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. De Zhentarim, Koningshuis..." />
+                        </div>
+                    </div>
+                }
+                else if (FolderName?.ToLowerInvariant() == "items")
+                {
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="itemType" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type Item</label>
+                            <select id="itemType" class="entity-create-input" @bind="ItemType">
+                                <option value="">Selecteer Type...</option>
+                                <option value="Weapon">Wapen (Weapon)</option>
+                                <option value="Armor">Harnas / Schild (Armor)</option>
+                                <option value="Potion">Toverdrank (Potion / Consumable)</option>
+                                <option value="Ring">Ring</option>
+                                <option value="Wand/Staff">Toverstaf / Staf (Wand / Staff)</option>
+                                <option value="Scroll">Toverrol (Scroll)</option>
+                                <option value="Wondrous Item">Wondrous Item</option>
+                                <option value="Material">Grondstof / Materiaal</option>
+                                <option value="Trinket">Trinket / Curiositeit</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="itemRarity" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Zeldzaamheid</label>
+                            <select id="itemRarity" class="entity-create-input" @bind="ItemRarity">
+                                <option value="">Selecteer Zeldzaamheid...</option>
+                                <option value="Common">Common</option>
+                                <option value="Uncommon">Uncommon</option>
+                                <option value="Rare">Rare</option>
+                                <option value="Very Rare">Very Rare</option>
+                                <option value="Legendary">Legendary</option>
+                                <option value="Artifact">Artifact</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="itemValue" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Geschatte Waarde / Prijs</label>
+                            <input type="text" id="itemValue" class="entity-create-input" @bind="ItemValue" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 50 gp, 500 gp, Onbetaalbaar..." />
+                        </div>
+                        @if (CanHaveAttunement(ItemType))
+                        {
+                            <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+                                <label class="entity-create-checkbox-label" style="height: 42px;">
+                                    <input type="checkbox" @bind="RequiresAttunement" /> Vereist Attunement
+                                </label>
+                            </div>
+                        }
+                    </div>
+
+                    @if (RequiresAttunement && CanHaveAttunement(ItemType))
+                    {
+                        <div>
+                            <label for="attunementDetails" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Attunement Details (Optioneel)</label>
+                            <input type="text" id="attunementDetails" class="entity-create-input" @bind="AttunementDetails" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. door een spellcaster, door een cleric of paladin..." />
+                        </div>
+                    }
+
+                    @* --- Item-type specifieke velden --- *@
+                    @if (ItemType?.ToLowerInvariant() == "weapon")
+                    {
+                        <div class="entity-create-section-header">Wapen Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="weaponCategory" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Wapen Categorie</label>
+                                <select id="weaponCategory" class="entity-create-input" @bind="WeaponCategory">
+                                    <option value="">Selecteer Categorie...</option>
+                                    <option value="Simple Melee">Simple Melee</option>
+                                    <option value="Martial Melee">Martial Melee</option>
+                                    <option value="Simple Ranged">Simple Ranged</option>
+                                    <option value="Martial Ranged">Martial Ranged</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="weaponRange" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Bereik (Range)</label>
+                                <input type="text" id="weaponRange" class="entity-create-input" @bind="WeaponRange" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Melee (5 ft), 30/120 ft..." />
+                            </div>
+                        </div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="weaponDamage" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Schade (Damage)</label>
+                                <input type="text" id="weaponDamage" class="entity-create-input" @bind="WeaponDamage" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 1d8, 2d6, 1d6/1d8..." />
+                            </div>
+                            <div>
+                                <label for="weaponDamageType" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Schadetype</label>
+                                <select id="weaponDamageType" class="entity-create-input" @bind="WeaponDamageType">
+                                    <option value="">Selecteer Schadetype...</option>
+                                    <option value="Slashing">Slashing</option>
+                                    <option value="Piercing">Piercing</option>
+                                    <option value="Bludgeoning">Bludgeoning</option>
+                                    <option value="Fire">Fire (Vuur)</option>
+                                    <option value="Cold">Cold (Kou)</option>
+                                    <option value="Lightning">Lightning (Bliksem)</option>
+                                    <option value="Acid">Acid (Zuur)</option>
+                                    <option value="Poison">Poison (Gif)</option>
+                                    <option value="Necrotic">Necrotic</option>
+                                    <option value="Radiant">Radiant</option>
+                                    <option value="Force">Force</option>
+                                    <option value="Psychic">Psychic</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="weaponProperties" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Eigenschappen (Properties)</label>
+                            <input type="text" id="weaponProperties" class="entity-create-input" @bind="WeaponProperties" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Finesse, Versatile (1d10), Light, Thrown..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "armor")
+                    {
+                        <div class="entity-create-section-header">Harnas Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="armorCategory" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type Harnas</label>
+                                <select id="armorCategory" class="entity-create-input" @bind="ArmorCategory">
+                                    <option value="">Selecteer Categorie...</option>
+                                    <option value="Light Armor">Light Armor</option>
+                                    <option value="Medium Armor">Medium Armor</option>
+                                    <option value="Heavy Armor">Heavy Armor</option>
+                                    <option value="Shield">Schild (Shield)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="armorAc" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Armor Class (AC)</label>
+                                <input type="text" id="armorAc" class="entity-create-input" @bind="ArmorAc" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 14 + Dex (max 2), 18, +2 AC..." />
+                            </div>
+                        </div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="strengthRequirement" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Krachtvereiste (Strength)</label>
+                                <input type="text" id="strengthRequirement" class="entity-create-input" @bind="StrengthRequirement" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Geen, Str 13, Str 15..." />
+                            </div>
+                            <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+                                <label class="entity-create-checkbox-label" style="height: 42px;">
+                                    <input type="checkbox" @bind="StealthDisadvantage" /> Nadeel op Stealth
+                                </label>
+                            </div>
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "potion")
+                    {
+                        <div class="entity-create-section-header">Toverdrank Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="potionForm" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Vorm / Toediening</label>
+                                <select id="potionForm" class="entity-create-input" @bind="PotionForm">
+                                    <option value="">Selecteer Vorm...</option>
+                                    <option value="Drank (Potion)">Drank (Potion)</option>
+                                    <option value="Olie (Aanbrengen)">Olie (Aanbrengen)</option>
+                                    <option value="Zalf (Salve)">Zalf (Salve)</option>
+                                    <option value="Gif (Poison)">Gif (Poison)</option>
+                                    <option value="Elixir">Elixir</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="potionDuration" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Werkingsduur</label>
+                                <input type="text" id="potionDuration" class="entity-create-input" @bind="PotionDuration" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Direct, 1 minuut, 1 uur, 8 uur..." />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="potionEffect" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Primair Effect</label>
+                            <input type="text" id="potionEffect" class="entity-create-input" @bind="PotionEffect" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Geneest 2d4+2 HP, Maakt de drinker onzichtbaar..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "ring")
+                    {
+                        <div class="entity-create-section-header">Ring Eigenschappen</div>
+
+                        <div>
+                            <label for="itemCharges" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Charges / Gebruik</label>
+                            <input type="text" id="itemCharges" class="entity-create-input" @bind="ItemCharges" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Passief, 3 charges (herlaadt bij dageraad), 1x per dag..." />
+                        </div>
+
+                        <div>
+                            <label for="itemEffect" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Magisch Effect / Bonus</label>
+                            <input type="text" id="itemEffect" class="entity-create-input" @bind="ItemEffect" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. +1 op saving throws, geeft weerstand tegen vuur..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "wand/staff")
+                    {
+                        <div class="entity-create-section-header">Staf / Toverstaf Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="itemCharges" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Charges (Aantal)</label>
+                                <input type="text" id="itemCharges" class="entity-create-input" @bind="ItemCharges" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 7 charges, 10 charges..." />
+                            </div>
+                            <div>
+                                <label for="itemRecharge" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Herladen</label>
+                                <input type="text" id="itemRecharge" class="entity-create-input" @bind="ItemRecharge" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 1d6+1 bij zonsopgang..." />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="itemSpellsAbilities" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Spells & Vaardigheden</label>
+                            <input type="text" id="itemSpellsAbilities" class="entity-create-input" @bind="ItemSpellsAbilities" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Fireball (3 charges), Magic Missile (1 charge)..." />
+                        </div>
+
+                        <div>
+                            <label for="itemEffect" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Passieve Bonus / Extra Effect</label>
+                            <input type="text" id="itemEffect" class="entity-create-input" @bind="ItemEffect" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. +1 op spell attack rolls en spell save DC..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "scroll")
+                    {
+                        <div class="entity-create-section-header">Toverrol Eigenschappen</div>
+
+                        <div>
+                            <label for="scrollSpellName" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Spell Naam</label>
+                            <input type="text" id="scrollSpellName" class="entity-create-input" @bind="ScrollSpellName" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Revivify, Fireball..." />
+                        </div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="scrollSpellLevel" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Spell Level</label>
+                                <select id="scrollSpellLevel" class="entity-create-input" @bind="ScrollSpellLevel">
+                                    <option value="">Selecteer Level...</option>
+                                    <option value="Cantrip">Cantrip</option>
+                                    <option value="1st Level">1st Level</option>
+                                    <option value="2nd Level">2nd Level</option>
+                                    <option value="3rd Level">3rd Level</option>
+                                    <option value="4th Level">4th Level</option>
+                                    <option value="5th Level">5th Level</option>
+                                    <option value="6th Level">6th Level</option>
+                                    <option value="7th Level">7th Level</option>
+                                    <option value="8th Level">8th Level</option>
+                                    <option value="9th Level">9th Level</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="scrollMagicSchool" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Magieschool</label>
+                                <select id="scrollMagicSchool" class="entity-create-input" @bind="ScrollMagicSchool">
+                                    <option value="">Selecteer School...</option>
+                                    <option value="Abjuration">Abjuration</option>
+                                    <option value="Conjuration">Conjuration</option>
+                                    <option value="Divination">Divination</option>
+                                    <option value="Enchantment">Enchantment</option>
+                                    <option value="Evocation">Evocation</option>
+                                    <option value="Illusion">Illusion</option>
+                                    <option value="Necromancy">Necromancy</option>
+                                    <option value="Transmutation">Transmutation</option>
+                                </select>
+                            </div>
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "wondrous item")
+                    {
+                        <div class="entity-create-section-header">Wondrous Item Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="itemSlot" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Equipment Slot</label>
+                                <select id="itemSlot" class="entity-create-input" @bind="ItemSlot">
+                                    <option value="">Selecteer Slot...</option>
+                                    <option value="Hoofd (Head)">Hoofd (Head)</option>
+                                    <option value="Hals (Neck)">Hals (Neck)</option>
+                                    <option value="Schouders (Cloak/Shoulders)">Schouders (Cloak/Shoulders)</option>
+                                    <option value="Handen (Hands)">Handen (Hands)</option>
+                                    <option value="Voeten (Feet)">Voeten (Feet)</option>
+                                    <option value="Riem (Waist)">Riem (Waist)</option>
+                                    <option value="Lichaam (Body)">Lichaam (Body)</option>
+                                    <option value="Gedragen / Algemeen">Gedragen / Algemeen</option>
+                                    <option value="Geen / In hand gehouden">Geen / In hand gehouden</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="itemCharges" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Charges / Gebruik</label>
+                                <input type="text" id="itemCharges" class="entity-create-input" @bind="ItemCharges" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Continu passief, 3 charges, 1x per rust..." />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="itemEffect" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Magische Werking / Effect</label>
+                            <input type="text" id="itemEffect" class="entity-create-input" @bind="ItemEffect" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Verleent vliegsnelheid van 60 ft, stelt drager in staat..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "material")
+                    {
+                        <div class="entity-create-section-header">Grondstof Eigenschappen</div>
+
+                        <div class="entity-create-row">
+                            <div>
+                                <label for="materialCategory" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Categorie Grondstof</label>
+                                <select id="materialCategory" class="entity-create-input" @bind="MaterialCategory">
+                                    <option value="">Selecteer Categorie...</option>
+                                    <option value="Erts / Metaal">Erts / Metaal</option>
+                                    <option value="Kruid / Plant">Kruid / Plant</option>
+                                    <option value="Edelsteen / Mineraal">Edelsteen / Mineraal</option>
+                                    <option value="Monster-onderdeel">Monster-onderdeel</option>
+                                    <option value="Alchemisch / Essentie">Alchemisch / Essentie</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="materialSource" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Herkomst / Vindplaats</label>
+                                <input type="text" id="materialSource" class="entity-create-input" @bind="MaterialSource" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Vulkanische grotten, Volwassen Draak..." />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="craftingUsage" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Crafting Toepassing</label>
+                            <input type="text" id="craftingUsage" class="entity-create-input" @bind="CraftingUsage" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Smeden van vuurwapens, Brouwen van Superior Healing potions..." />
+                        </div>
+                    }
+                    else if (ItemType?.ToLowerInvariant() == "trinket")
+                    {
+                        <div class="entity-create-section-header">Trinket Eigenschappen</div>
+
+                        <div>
+                            <label for="trinketOrigin" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Herkomst / Vorige Eigenaar</label>
+                            <input type="text" id="trinketOrigin" class="entity-create-input" @bind="TrinketOrigin" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Gevonden in een verlaten tombe van een oude krijger..." />
+                        </div>
+
+                        <div>
+                            <label for="trinketQuirk" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Bijzonderheid / Quirk</label>
+                            <input type="text" id="trinketQuirk" class="entity-create-input" @bind="TrinketQuirk" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Voelt altijd ijskoud aan, tikt zachtjes bij volle maan..." />
+                        </div>
+                    }
+                }
+                else if (FolderName?.ToLowerInvariant() == "handouts")
+                {
+                    <div>
+                        <label for="handoutType" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type Handout</label>
+                        <select id="handoutType" class="entity-create-input" @bind="HandoutType">
+                            <option value="">Selecteer Type...</option>
+                            <option value="Letter">Brief / Notitie</option>
+                            <option value="Map">Kaart</option>
+                            <option value="Book">Boek / Dagboek</option>
+                            <option value="Puzzle">Puzzel</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Decree">Officieel Decreet</option>
+                        </select>
+                    </div>
+
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="handoutAuthor" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Auteur / Maker</label>
+                            <input type="text" id="handoutAuthor" class="entity-create-input" @bind="HandoutAuthor" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Lord Neverember..." />
+                        </div>
+                        <div>
+                            <label for="handoutRecipient" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Bestemmeling</label>
+                            <input type="text" id="handoutRecipient" class="entity-create-input" @bind="HandoutRecipient" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. De partij, Kapitein..." />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="handoutLanguage" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Taal / Schrift</label>
+                        <input type="text" id="handoutLanguage" class="entity-create-input" @bind="HandoutLanguage" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Common, Elvish, Draconic, Gecodeerd..." />
+                    </div>
+                }
+                else if (FolderName?.ToLowerInvariant() == "sessies")
+                {
+                    <div class="entity-create-row">
+                        <div>
+                            <label for="sessionDate" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">In-game Datum (Optioneel)</label>
+                            <input type="text" id="sessionDate" class="entity-create-input" @bind="SessionDate" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 14 Kythorn, 1492 DR" />
+                        </div>
+                        <div>
+                            <label for="sessionLocation" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Startlocatie (Optioneel)</label>
+                            <input type="text" id="sessionLocation" class="entity-create-input" @bind="SessionLocation" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Waar begint de sessie?" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="sessionObjective" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Doel / Focus van de sessie</label>
+                        <input type="text" id="sessionObjective" class="entity-create-input" @bind="SessionObjective" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Infiltratie van het kasteel, Ontsnappen uit de kerker..." />
+                    </div>
+                }
+
+                <div class="entity-create-modal-footer">
+                    <button class="btn-secondary" @onclick="Cancel">Annuleren</button>
+                    <button class="btn-primary" @onclick="Confirm" disabled="@string.IsNullOrWhiteSpace(Title)">Toevoegen</button>
+                </div>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public EventCallback<EntityCreateResult?> OnClosed { get; set; }
+
+    public bool IsVisible { get; private set; }
+    public string EntityName { get; private set; } = "entiteit";
+    public string FolderName { get; private set; } = "";
+    
+    public string Title { get; set; } = "";
+    
+    // NPC fields
+    public bool IsNamedNpc { get; set; } = true;
+    public string NpcClass { get; set; } = "";
+    public string NpcJob { get; set; } = "";
+    public string NpcRace { get; set; } = "";
+    public string NpcFaction { get; set; } = "";
+    
+    // PC fields
+    public string PlayerName { get; set; } = "";
+    public string PcRace { get; set; } = "";
+    public string PcClass { get; set; } = "";
+    public string PcSubclass { get; set; } = "";
+    public string PcLevel { get; set; } = "";
+
+    // Location fields
+    public string LocationType { get; set; } = "";
+    public string LocationRegion { get; set; } = "";
+    public string LocationAtmosphere { get; set; } = "";
+    public string LocationRuler { get; set; } = "";
+
+    // Lore fields
+    public string LoreCategory { get; set; } = "";
+    public string LoreEra { get; set; } = "";
+    public string LoreEntities { get; set; } = "";
+
+    // Item common fields
+    public string ItemType { get; set; } = "";
+    public string ItemRarity { get; set; } = "";
+    public bool RequiresAttunement { get; set; } = false;
+    public string AttunementDetails { get; set; } = "";
+    public string ItemValue { get; set; } = "";
+
+    // Item Weapon fields
+    public string WeaponCategory { get; set; } = "";
+    public string WeaponDamage { get; set; } = "";
+    public string WeaponDamageType { get; set; } = "";
+    public string WeaponProperties { get; set; } = "";
+    public string WeaponRange { get; set; } = "";
+
+    // Item Armor fields
+    public string ArmorCategory { get; set; } = "";
+    public string ArmorAc { get; set; } = "";
+    public string StrengthRequirement { get; set; } = "";
+    public bool StealthDisadvantage { get; set; } = false;
+
+    // Item Potion fields
+    public string PotionForm { get; set; } = "";
+    public string PotionEffect { get; set; } = "";
+    public string PotionDuration { get; set; } = "";
+
+    // Item Ring / Wand / Staff / Wondrous fields
+    public string ItemSlot { get; set; } = "";
+    public string ItemCharges { get; set; } = "";
+    public string ItemRecharge { get; set; } = "";
+    public string ItemSpellsAbilities { get; set; } = "";
+    public string ItemEffect { get; set; } = "";
+
+    // Item Scroll fields
+    public string ScrollSpellName { get; set; } = "";
+    public string ScrollSpellLevel { get; set; } = "";
+    public string ScrollMagicSchool { get; set; } = "";
+
+    // Item Material fields
+    public string MaterialCategory { get; set; } = "";
+    public string MaterialSource { get; set; } = "";
+    public string CraftingUsage { get; set; } = "";
+
+    // Item Trinket fields
+    public string TrinketOrigin { get; set; } = "";
+    public string TrinketQuirk { get; set; } = "";
+
+    // Handout fields
+    public string HandoutType { get; set; } = "";
+    public string HandoutAuthor { get; set; } = "";
+    public string HandoutRecipient { get; set; } = "";
+    public string HandoutLanguage { get; set; } = "";
+
+    // Session fields
+    public string SessionDate { get; set; } = "";
+    public string SessionLocation { get; set; } = "";
+    public string SessionObjective { get; set; } = "";
+
+    private TaskCompletionSource<EntityCreateResult?>? _tcs;
+
+    public Task<EntityCreateResult?> ShowAsync(string entityName, string folderName)
+    {
+        EntityName = entityName;
+        FolderName = folderName;
+        Title = "";
+        IsNamedNpc = true;
+        NpcClass = "";
+        NpcJob = "";
+        NpcRace = "";
+        NpcFaction = "";
+        PlayerName = "";
+        PcRace = "";
+        PcClass = "";
+        PcSubclass = "";
+        PcLevel = "";
+        LocationType = "";
+        LocationRegion = "";
+        LocationAtmosphere = "";
+        LocationRuler = "";
+        LoreCategory = "";
+        LoreEra = "";
+        LoreEntities = "";
+        ItemType = "";
+        ItemRarity = "";
+        RequiresAttunement = false;
+        AttunementDetails = "";
+        ItemValue = "";
+        WeaponCategory = "";
+        WeaponDamage = "";
+        WeaponDamageType = "";
+        WeaponProperties = "";
+        WeaponRange = "";
+        ArmorCategory = "";
+        ArmorAc = "";
+        StrengthRequirement = "";
+        StealthDisadvantage = false;
+        PotionForm = "";
+        PotionEffect = "";
+        PotionDuration = "";
+        ItemSlot = "";
+        ItemCharges = "";
+        ItemRecharge = "";
+        ItemSpellsAbilities = "";
+        ItemEffect = "";
+        ScrollSpellName = "";
+        ScrollSpellLevel = "";
+        ScrollMagicSchool = "";
+        MaterialCategory = "";
+        MaterialSource = "";
+        CraftingUsage = "";
+        TrinketOrigin = "";
+        TrinketQuirk = "";
+        HandoutType = "";
+        HandoutAuthor = "";
+        HandoutRecipient = "";
+        HandoutLanguage = "";
+        SessionDate = "";
+        SessionLocation = "";
+        SessionObjective = "";
+        IsVisible = true;
+        _tcs = new TaskCompletionSource<EntityCreateResult?>();
+        StateHasChanged();
+        return _tcs.Task;
+    }
+
+    private bool CanHaveAttunement(string? itemType)
+    {
+        var lower = itemType?.ToLowerInvariant();
+        return lower is "weapon" or "armor" or "ring" or "wand/staff" or "wondrous item";
+    }
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        _tcs?.TrySetResult(null);
+        await OnClosed.InvokeAsync(null);
+        StateHasChanged();
+    }
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(Title)) return;
+        
+        IsVisible = false;
+        var result = new EntityCreateResult(
+            Title: Title,
+            FolderName: FolderName,
+            IsNamedNpc: IsNamedNpc,
+            NpcClass: NpcClass,
+            NpcJob: NpcJob,
+            NpcRace: NpcRace,
+            NpcFaction: NpcFaction,
+            PlayerName: PlayerName,
+            PcRace: PcRace,
+            PcClass: PcClass,
+            PcSubclass: PcSubclass,
+            PcLevel: PcLevel,
+            LocationType: LocationType,
+            LocationRegion: LocationRegion,
+            LocationAtmosphere: LocationAtmosphere,
+            LocationRuler: LocationRuler,
+            LoreCategory: LoreCategory,
+            LoreEra: LoreEra,
+            LoreEntities: LoreEntities,
+            HandoutType: HandoutType,
+            HandoutAuthor: HandoutAuthor,
+            HandoutRecipient: HandoutRecipient,
+            HandoutLanguage: HandoutLanguage,
+            SessionDate: SessionDate,
+            SessionLocation: SessionLocation,
+            SessionObjective: SessionObjective,
+            ItemType: ItemType,
+            ItemRarity: ItemRarity,
+            RequiresAttunement: RequiresAttunement,
+            AttunementDetails: AttunementDetails,
+            ItemValue: ItemValue,
+            WeaponCategory: WeaponCategory,
+            WeaponDamage: WeaponDamage,
+            WeaponDamageType: WeaponDamageType,
+            WeaponProperties: WeaponProperties,
+            WeaponRange: WeaponRange,
+            ArmorCategory: ArmorCategory,
+            ArmorAc: ArmorAc,
+            StrengthRequirement: StrengthRequirement,
+            StealthDisadvantage: StealthDisadvantage,
+            PotionForm: PotionForm,
+            PotionEffect: PotionEffect,
+            PotionDuration: PotionDuration,
+            ItemSlot: ItemSlot,
+            ItemCharges: ItemCharges,
+            ItemRecharge: ItemRecharge,
+            ItemSpellsAbilities: ItemSpellsAbilities,
+            ItemEffect: ItemEffect,
+            ScrollSpellName: ScrollSpellName,
+            ScrollSpellLevel: ScrollSpellLevel,
+            ScrollMagicSchool: ScrollMagicSchool,
+            MaterialCategory: MaterialCategory,
+            MaterialSource: MaterialSource,
+            CraftingUsage: CraftingUsage,
+            TrinketOrigin: TrinketOrigin,
+            TrinketQuirk: TrinketQuirk
+        );
+        Title = "";
+        _tcs?.TrySetResult(result);
+        await OnClosed.InvokeAsync(result);
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(Title))
+        {
+            await Confirm();
+        }
+        else if (e.Key == "Escape")
+        {
+            await Cancel();
+        }
+    }
+}

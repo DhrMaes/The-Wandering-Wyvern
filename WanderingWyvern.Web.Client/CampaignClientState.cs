@@ -48,9 +48,10 @@ public sealed class CampaignClientState : IAsyncDisposable
             var files = await _contentStore.ChooseFolderAsync(cancellationToken);
             SetLoading(true);
             await StopMonitorAsync();
+            await CampaignAiTemplates.SyncAsync(_contentStore, cancellationToken);
             Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
-            FileCount = files.Count;
             _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
+            FileCount = _fileMetadata.Count;
             CanRestoreSavedFolder = true;
             StartMonitor();
         }
@@ -82,9 +83,10 @@ public sealed class CampaignClientState : IAsyncDisposable
 
             SetLoading(true);
             await StopMonitorAsync();
+            await CampaignAiTemplates.SyncAsync(_contentStore, cancellationToken);
             Current = await _indexBuilder.BuildAsync(_contentStore, cancellationToken);
-            FileCount = files.Length;
             _fileMetadata = await ReadFileMetadataAsync(cancellationToken);
+            FileCount = _fileMetadata.Count;
             MonitorError = null;
             StartMonitor();
             return true;
@@ -128,6 +130,23 @@ public sealed class CampaignClientState : IAsyncDisposable
         string relativePath,
         CancellationToken cancellationToken = default) =>
         _contentStore.ReadAssetUrlAsync(relativePath, cancellationToken);
+
+    public async Task<string?> ReadDocumentAsync(
+        string relativePath,
+        CancellationToken cancellationToken = default)
+    {
+        return await _contentStore.ExistsAsync(relativePath, cancellationToken)
+            ? await _contentStore.ReadTextAsync(relativePath, cancellationToken)
+            : null;
+    }
+
+    public async Task WriteDocumentAsync(
+        string relativePath,
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        await _contentStore.WriteTextAsync(relativePath, content, cancellationToken);
+    }
 
     public async Task<string?> ReadNotesAsync(
         string sessionSlug,

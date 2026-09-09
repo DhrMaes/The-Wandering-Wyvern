@@ -21,7 +21,12 @@
             </div>
         </div>
 
-        <h2 id="sessions">Sessies</h2>
+        <div class="entity-list-header">
+            <h2 id="sessions">Sessies</h2>
+            <button class="btn-secondary btn-sm" @onclick="CreateNewSession" title="Nieuwe sessie toevoegen">
+                + Toevoegen
+            </button>
+        </div>
         @if (index.Sessions.Count == 0)
         {
             <p class="empty-state">Nog geen sessies gevonden.</p>
@@ -39,17 +44,20 @@
             </div>
         }
 
-        <EntityList Id="npcs" Title="NPCs" Entities="index.Npcs" />
-        <EntityList Id="locations" Title="Locaties" Entities="index.Locations" />
-        <EntityList Id="lore" Title="Lore" Entities="index.Lore" />
-        <EntityList Id="pcs" Title="Personages (PCs)" Entities="index.Pcs" />
-        <EntityList Id="items" Title="Items" Entities="index.Items" />
-        <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" />
+        <EntityList Id="npcs" Title="NPCs" Entities="index.Npcs" FolderName="NPCs" />
+        <EntityList Id="locations" Title="Locaties" Entities="index.Locations" FolderName="Locations" />
+        <EntityList Id="lore" Title="Lore" Entities="index.Lore" FolderName="Lore" />
+        <EntityList Id="pcs" Title="Personages (PCs)" Entities="index.Pcs" FolderName="PCs" />
+        <EntityList Id="items" Title="Items" Entities="index.Items" FolderName="Items" />
+        <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" FolderName="Handouts" />
+        
+        <EntityCreateModal @ref="_createModal" />
     }
 </div>
 
 @code {
     private bool _scrollRestorationRequested;
+    private EntityCreateModal _createModal = default!;
 
     protected override void OnInitialized()
     {
@@ -66,6 +74,61 @@
     }
 
     private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task CreateNewSession()
+    {
+        var result = await _createModal.ShowAsync("Sessie", "Sessies");
+        if (result == null || string.IsNullOrWhiteSpace(result.Title))
+        {
+            return;
+        }
+
+        var title = result.Title;
+        var rawSlug = title.ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("'", "")
+            .Replace("\"", "")
+            .Replace(":", "")
+            .Replace("?", "")
+            .Replace("!", "");
+
+        var nextSessionNumber = (CampaignState.Current?.Sessions.Count ?? 0) + 1;
+        var slug = $"session-{nextSessionNumber:D2}-{rawSlug}";
+
+        var outlinePath = $"Sessions/{slug}/outline.md";
+        var scriptPath = $"Sessions/{slug}/script.md";
+
+        var sessionGoal = string.IsNullOrWhiteSpace(result.SessionObjective) ? "- " : $"- {result.SessionObjective}";
+        var outlineContent = $@"# Sessie {nextSessionNumber} — {title}
+
+{(string.IsNullOrWhiteSpace(result.SessionDate) ? "" : $"In-game Datum: {result.SessionDate}\n")}{(string.IsNullOrWhiteSpace(result.SessionLocation) ? "" : $"Huidige Locatie: {result.SessionLocation}\n\n")}## Doel van deze sessie
+{sessionGoal}
+
+## Belangrijke NPCs
+- 
+
+## Locaties
+- 
+
+## Plot hooks & Geheimen
+- 
+";
+        var scriptContent = $@"# Sessie {nextSessionNumber} — {title} (Script)
+
+## Introductie
+- 
+
+## Scenes
+### Scene 1: ...
+- 
+
+## Outro
+- 
+";
+
+        await CampaignState.WriteDocumentAsync(outlinePath, outlineContent);
+        await CampaignState.WriteDocumentAsync(scriptPath, scriptContent);
+    }
 
     public void Dispose()
     {
