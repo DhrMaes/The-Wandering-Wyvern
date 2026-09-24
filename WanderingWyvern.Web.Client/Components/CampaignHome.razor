@@ -11,8 +11,17 @@
     @if (CampaignState.Current is { } index)
     {
         <div class="hero">
-            <h1>A Language of Dragons</h1>
-            <p>The Wandering Wyvern — alles wat je nodig hebt aan tafel, op één plek.</p>
+            <div class="hero-header">
+                <div class="hero-text">
+                    <h1>@index.CampaignTitle</h1>
+                    <p>The Wandering Wyvern — alles wat je nodig hebt aan tafel, op één plek.</p>
+                </div>
+                <div class="hero-actions">
+                    <a class="btn-secondary btn-sm" href="/campaign-info" title="Campagne-informatie bekijken of bewerken">
+                        @(index.Readme is not null ? "Campagne-info" : "Campagne-info instellen")
+                    </a>
+                </div>
+            </div>
             <div class="stat-row">
                 <div class="stat-pill"><strong>@index.Sessions.Count</strong> sessies</div>
                 <div class="stat-pill"><strong>@index.Npcs.Count</strong> NPCs</div>
@@ -52,12 +61,15 @@
         <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" FolderName="Handouts" />
         
         <EntityCreateModal @ref="_createModal" />
+        <CampaignSetupModal @ref="_setupModal" />
     }
 </div>
 
 @code {
     private bool _scrollRestorationRequested;
+    private bool _hasCheckedInitialSetup;
     private EntityCreateModal _createModal = default!;
+    private CampaignSetupModal _setupModal = default!;
 
     protected override void OnInitialized()
     {
@@ -70,6 +82,12 @@
         {
             _scrollRestorationRequested = true;
             await JS.InvokeVoidAsync("wanderingWyvern.restoreOverviewScroll");
+        }
+
+        if (!_hasCheckedInitialSetup && CampaignState.NeedsInitialSetup)
+        {
+            _hasCheckedInitialSetup = true;
+            await _setupModal.ShowAsync(isInitial: true);
         }
     }
 

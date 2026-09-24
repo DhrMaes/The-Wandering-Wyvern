@@ -10,6 +10,7 @@
             @if (!_isEditing)
             {
                 <div class="editable-document-actions">
+                    @ExtraActions
                     <button @onclick="BeginEdit">Bewerken</button>
                 </div>
             }
@@ -18,11 +19,22 @@
 
     @if (_isEditing)
     {
-        <div class="editable-document-edit">
-            <textarea @bind="_markdownContent" placeholder="Typ je tekst hier in Markdown..."></textarea>
+        <div class="editable-document-edit @(_isFullScreen ? "is-fullscreen" : "")" @onkeydown="HandleKeyDown" tabindex="-1">
+            <div class="editable-document-edit-header">
+                <span class="editable-document-path">📄 @RelativePath</span>
+                <button type="button" class="fullscreen-toggle-btn" @onclick="ToggleFullScreen" title="@(_isFullScreen ? "Normale weergave (Esc)" : "Volledig scherm")">
+                    @(_isFullScreen ? "🗗 Verkleinen" : "⛶ Volledig scherm")
+                </button>
+            </div>
+            <textarea @bind="_markdownContent" @onkeydown="HandleKeyDown" placeholder="Typ je tekst hier in Markdown..."></textarea>
             <div class="editable-document-edit-buttons">
-                <button class="save-button" @onclick="SaveAsync">Opslaan</button>
-                <button class="cancel-button" @onclick="CancelEdit">Annuleren</button>
+                <div class="edit-primary-buttons">
+                    <button class="save-button" @onclick="SaveAsync">Opslaan</button>
+                    <button class="cancel-button" @onclick="CancelEdit">Annuleren</button>
+                </div>
+                <button type="button" class="fullscreen-toggle-btn" @onclick="ToggleFullScreen" title="@(_isFullScreen ? "Normale weergave" : "Volledig scherm")">
+                    @(_isFullScreen ? "🗗 Normale weergave" : "⛶ Volledig scherm")
+                </button>
             </div>
         </div>
     }
@@ -31,6 +43,7 @@
         @if (Header is null)
         {
             <div class="editable-document-actions">
+                @ExtraActions
                 <button @onclick="BeginEdit">Bewerken</button>
             </div>
         }
@@ -48,7 +61,11 @@
     [Parameter]
     public RenderFragment? Header { get; set; }
 
+    [Parameter]
+    public RenderFragment? ExtraActions { get; set; }
+
     private bool _isEditing;
+    private bool _isFullScreen;
     private string _markdownContent = string.Empty;
 
     private async Task BeginEdit()
@@ -57,14 +74,29 @@
         _isEditing = true;
     }
 
+    private void ToggleFullScreen()
+    {
+        _isFullScreen = !_isFullScreen;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && _isFullScreen)
+        {
+            _isFullScreen = false;
+        }
+    }
+
     private void CancelEdit()
     {
         _isEditing = false;
+        _isFullScreen = false;
     }
 
     private async Task SaveAsync()
     {
         await CampaignState.WriteDocumentAsync(RelativePath, _markdownContent);
         _isEditing = false;
+        _isFullScreen = false;
     }
 }

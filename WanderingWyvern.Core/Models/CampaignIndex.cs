@@ -21,6 +21,12 @@ public sealed class CampaignIndex
 
     public required IReadOnlyDictionary<string, CampaignDocument> DocumentsByPath { get; init; }
 
+    public CampaignDocument? Readme => FindDocument("README.md");
+
+    public string CampaignTitle => Readme?.Title ?? "The Wandering Wyvern";
+
+    public int TotalEntityCount => Sessions.Count + Npcs.Count + Locations.Count + Lore.Count + Pcs.Count + Items.Count + Handouts.Count;
+
     public CampaignEntity? FindSession(string slug) =>
         Sessions.FirstOrDefault(s => string.Equals(s.Slug, slug, StringComparison.OrdinalIgnoreCase));
 

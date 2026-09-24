@@ -1,0 +1,61 @@
+@using DhrMaes.WanderingWyvern.Core.Models
+@using DhrMaes.WanderingWyvern.Web.Client.Components
+@inject CampaignClientState CampaignState
+
+<PageTitle>Test Session View</PageTitle>
+
+@if (_initialized)
+{
+    <DhrMaes.WanderingWyvern.Web.Client.Pages.SessionView Slug="sessie-1" />
+}
+
+@code {
+    private bool _initialized;
+
+    protected override void OnInitialized()
+    {
+        var outlineDoc = new CampaignDocument
+        {
+            RelativePath = "Sessions/sessie-1/outline.md",
+            Title = "Outline (regie)",
+            FileName = "outline"
+        };
+        var scriptDoc = new CampaignDocument
+        {
+            RelativePath = "Sessions/sessie-1/script.md",
+            Title = "Voorleesscript",
+            FileName = "script"
+        };
+        var sessionEntity = new CampaignEntity
+        {
+            Type = CampaignEntityType.Session,
+            Slug = "sessie-1",
+            Title = "Sessie 1: De Verloren Karavaan",
+            RelativeFolderPath = "Sessions/sessie-1",
+            Documents = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["outline"] = outlineDoc,
+                ["script"] = scriptDoc
+            },
+            Images = []
+        };
+        var index = new CampaignIndex
+        {
+            Sessions = [sessionEntity],
+            Npcs = [],
+            Locations = [],
+            Lore = [],
+            Pcs = [],
+            Items = [],
+            Handouts = [],
+            DocumentsByPath = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Sessions/sessie-1/outline.md"] = outlineDoc,
+                ["Sessions/sessie-1/script.md"] = scriptDoc
+            }
+        };
+
+        CampaignState.SetCurrentForTesting(index);
+        _initialized = true;
+    }
+}

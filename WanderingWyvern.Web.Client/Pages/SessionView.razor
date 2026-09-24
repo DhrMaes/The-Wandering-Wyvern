@@ -17,9 +17,31 @@
     }
     else
     {
-        <h1>@_session.Title</h1>
+        <div class="session-view-header">
+            <h1>@_session.Title</h1>
+            <div class="session-view-controls" role="group" aria-label="Weergavemodus">
+                <button type="button"
+                        class="session-view-btn @(!_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                        @onclick="ShowSplitView"
+                        title="Gesplitste weergave (beide panelen)">
+                    <span class="view-btn-icon">◫</span> Gesplitst
+                </button>
+                <button type="button"
+                        class="session-view-btn @(!_isOutlineCollapsed && _isScriptCollapsed ? "is-active" : "")"
+                        @onclick="ShowOutlineOnly"
+                        title="Alleen outline tonen (volledig scherm)">
+                    <span class="view-btn-icon">◧</span> Alleen outline
+                </button>
+                <button type="button"
+                        class="session-view-btn @(_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                        @onclick="ShowScriptOnly"
+                        title="Alleen script tonen (volledig scherm)">
+                    <span class="view-btn-icon">◨</span> Alleen script
+                </button>
+            </div>
+        </div>
 
-        <div class="split-pane">
+        <div class="split-pane @GetSplitPaneClass()">
             <div class="split-pane-column outline-column">
                 <EditableDocument RelativePath="@($"Sessions/{Slug}/outline.md")" Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")">
                     <Header>
@@ -69,12 +91,48 @@
     private string? _recapHtml;
     private string? _existingNotes;
     private string _newNote = string.Empty;
+    private bool _isOutlineCollapsed;
+    private bool _isScriptCollapsed;
+
+    private void ShowSplitView()
+    {
+        _isOutlineCollapsed = false;
+        _isScriptCollapsed = false;
+    }
+
+    private void ShowOutlineOnly()
+    {
+        _isOutlineCollapsed = false;
+        _isScriptCollapsed = true;
+    }
+
+    private void ShowScriptOnly()
+    {
+        _isOutlineCollapsed = true;
+        _isScriptCollapsed = false;
+    }
+
+    private string GetSplitPaneClass()
+    {
+        if (_isOutlineCollapsed)
+            return "is-outline-collapsed";
+        if (_isScriptCollapsed)
+            return "is-script-collapsed";
+        return string.Empty;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
         LoadSession();
         await LoadDocumentsAsync();
-        _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+        try
+        {
+            _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+        }
+        catch
+        {
+            _existingNotes = null;
+        }
     }
 
     protected override void OnInitialized()
@@ -91,7 +149,14 @@
     {
         LoadSession();
         await LoadDocumentsAsync();
-        _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+        try
+        {
+            _existingNotes = _session is null ? null : await CampaignState.ReadNotesAsync(Slug);
+        }
+        catch
+        {
+            _existingNotes = null;
+        }
         await InvokeAsync(StateHasChanged);
     }
 
@@ -107,7 +172,14 @@
         if (_session is null || !_session.Documents.TryGetValue(fileName, out var document))
             return null;
 
-        return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
+        try
+        {
+            return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<string> RenderDocumentAsync(string fileName)
@@ -115,7 +187,14 @@
         if (_session is null || !_session.Documents.TryGetValue(fileName, out var document))
             return "<p><em>Nog niet aangemaakt.</em></p>";
 
-        return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
+        try
+        {
+            return await Renderer.RenderToHtmlAsync(document, CampaignState.Current!);
+        }
+        catch
+        {
+            return "<p><em>Kon document niet laden.</em></p>";
+        }
     }
 
     private async Task SaveNoteAsync()

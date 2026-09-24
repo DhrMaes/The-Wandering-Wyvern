@@ -25,6 +25,12 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     public CampaignIndex? Current { get; private set; }
 
+    public void SetCurrentForTesting(CampaignIndex index)
+    {
+        Current = index;
+        Changed?.Invoke();
+    }
+
     public bool HasSelectedFolder => Current is not null;
 
     public int FileCount { get; private set; }
@@ -32,6 +38,8 @@ public sealed class CampaignClientState : IAsyncDisposable
     public bool IsLoading { get; private set; }
 
     public bool CanRestoreSavedFolder { get; private set; }
+
+    public bool NeedsInitialSetup => Current is not null && Current.Readme is null && Current.TotalEntityCount == 0;
 
     public string? MonitorError { get; private set; }
 

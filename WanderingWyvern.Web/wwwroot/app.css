@@ -569,6 +569,27 @@ a:hover {
     font-size: 1.1rem;
 }
 
+.hero-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.hero-text {
+    flex: 1;
+    min-width: 260px;
+}
+
+.hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    margin-top: 0.25rem;
+}
+
 .stat-row {
     display: flex;
     gap: 1.25rem;
@@ -772,11 +793,109 @@ a:hover {
     color: var(--gold-bright);
 }
 
+.session-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.session-view-header h1 {
+    margin: 0;
+}
+
+.session-view-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--parchment-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 0.25rem;
+    box-shadow: var(--shadow-deep);
+}
+
+.session-view-btn {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.15s ease;
+}
+
+.session-view-btn:hover {
+    color: var(--gold-bright);
+    background: var(--parchment-1);
+    border-color: var(--border-soft);
+}
+
+.session-view-btn.is-active {
+    color: var(--gold-bright);
+    background: var(--parchment-1);
+    border-color: var(--gold);
+    font-weight: 600;
+}
+
+.session-view-btn .view-btn-icon {
+    font-size: 0.95rem;
+}
+
 .split-pane {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
     align-items: start;
+}
+
+.split-pane.is-outline-collapsed {
+    grid-template-columns: 1fr;
+}
+
+.split-pane.is-outline-collapsed .outline-column {
+    display: none;
+}
+
+.split-pane.is-script-collapsed {
+    grid-template-columns: 1fr;
+}
+
+.split-pane.is-script-collapsed .script-column {
+    display: none;
+}
+
+.split-pane.is-both-collapsed {
+    grid-template-columns: 1fr;
+}
+
+.split-pane.is-both-collapsed .outline-column,
+.split-pane.is-both-collapsed .script-column {
+    display: none;
+}
+
+.split-pane-empty-notice {
+    background: var(--parchment-2);
+    border: 1px dashed var(--border-soft);
+    border-radius: 12px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    color: var(--ink-dim);
+}
+
+.split-pane-empty-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
 }
 
 @media (max-width: 1000px) {
@@ -1052,12 +1171,15 @@ a:hover {
 .editable-document-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 0.4rem;
     margin-bottom: 0.5rem;
 }
 
 .editable-document-header-row .editable-document-actions {
     margin-bottom: 0;
     margin-left: 1rem;
+    flex-shrink: 0;
 }
 
 .editable-document-actions button {
@@ -1070,6 +1192,7 @@ a:hover {
     font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
 }
 
 .editable-document-actions button:hover {
@@ -1082,23 +1205,59 @@ a:hover {
     background: var(--parchment-2);
     border: 1px solid var(--border-soft);
     border-radius: 12px;
-    padding: 1rem;
+    padding: 1rem 1.25rem;
     margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.editable-document-edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.editable-document-path {
+    font-size: 0.85rem;
+    color: var(--ink-dim);
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.fullscreen-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    color: var(--ink-dim);
+    border-radius: 6px;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: var(--font-display);
+    transition: all 0.15s ease;
+}
+
+.fullscreen-toggle-btn:hover {
+    background: var(--parchment-1);
+    color: var(--gold-bright);
+    border-color: var(--gold);
 }
 
 .editable-document-edit textarea {
     width: 100%;
     font-family: Consolas, "Courier New", monospace;
     font-size: 0.95rem;
-    min-height: 250px;
+    min-height: 55vh;
+    height: 60vh;
     background: var(--parchment-1);
     color: var(--ink-dim);
     border: 1px solid var(--border-soft);
     border-radius: 8px;
-    padding: 0.7rem 0.9rem;
+    padding: 0.85rem 1rem;
     resize: vertical;
     margin-bottom: 1rem;
-    line-height: 1.4;
+    line-height: 1.5;
+    box-sizing: border-box;
 }
 
 .editable-document-edit textarea:focus {
@@ -1109,7 +1268,44 @@ a:hover {
 
 .editable-document-edit-buttons {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.edit-primary-buttons {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* Fullscreen mode */
+.editable-document-edit.is-fullscreen {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1500;
+    background: var(--parchment-0);
+    border: 1px solid var(--gold);
+    box-shadow: 0 0 0 100vmax rgba(5, 4, 3, 0.85), var(--shadow-deep);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.editable-document-edit.is-fullscreen textarea {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    resize: none;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
 }
 
 .editable-document-edit-buttons button.save-button {

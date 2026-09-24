@@ -1,0 +1,202 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@inject CampaignClientState CampaignState
+
+@if (IsVisible)
+{
+    <div class="campaign-reference-backdrop" @onclick="Cancel">
+        <section class="entity-create-modal" role="dialog" aria-modal="true" aria-labelledby="setup-campaign-title" @onclick:stopPropagation>
+            <div class="campaign-reference-modal-header">
+                <h2 id="setup-campaign-title" style="margin: 0;">@(IsInitialSetup ? "Nieuwe Campagne Instellen" : "Campagne-informatie Bewerken")</h2>
+                <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="Cancel">×</button>
+            </div>
+            <div class="entity-create-modal-body">
+                @if (IsInitialSetup)
+                {
+                    <p style="margin: 0; color: var(--ink-muted); font-size: 0.95rem;">
+                        Welkom bij The Wandering Wyvern! Deze map heeft nog geen campagne-instellingen. Vul hieronder de algemene informatie in om je campagne op te starten.
+                    </p>
+                }
+
+                <div>
+                    <label for="campaignTitle" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Campagnetitel</label>
+                    <input type="text" id="campaignTitle" class="entity-create-input" @bind="Title" @bind:event="oninput" @onkeyup="HandleKeyUp" autofocus placeholder="Bv. A Language of Dragons, Curse of Strahd..." />
+                </div>
+
+                <div class="entity-create-row">
+                    <div>
+                        <label for="campaignDm" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Dungeon Master / Auteur</label>
+                        <input type="text" id="campaignDm" class="entity-create-input" @bind="DungeonMaster" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Arne" />
+                    </div>
+                    <div>
+                        <label for="campaignSetting" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Setting / Wereld</label>
+                        <input type="text" id="campaignSetting" class="entity-create-input" @bind="Setting" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. Faerûn, The Sword Coast, Eigen wereld..." />
+                    </div>
+                </div>
+
+                <div class="entity-create-row">
+                    <div>
+                        <label for="campaignSystem" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Systeem / Editie</label>
+                        <select id="campaignSystem" class="entity-create-input" @bind="System">
+                            <option value="D&D 5e (2024)">D&D 5e (2024)</option>
+                            <option value="D&D 5e">D&D 5e</option>
+                            <option value="Pathfinder 2e">Pathfinder 2e</option>
+                            <option value="Overig / Homebrew">Overig / Homebrew</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="campaignPitch" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Korte Samenvatting / Pitch</label>
+                    <textarea id="campaignPitch" class="entity-create-input" style="min-height: 80px; resize: vertical;" @bind="Pitch" placeholder="Waar gaat de campagne over? Wat is de centrale premisse of dreiging?"></textarea>
+                </div>
+
+                @if (IsInitialSetup)
+                {
+                    <div>
+                        <label class="entity-create-checkbox-label">
+                            <input type="checkbox" @bind="CreateStandardFolders" /> Standaard mappenstructuur aanmaken (Sessions, NPCs, Locations, Lore, PCs, Items, Handouts)
+                        </label>
+                    </div>
+                }
+
+                <div class="entity-create-modal-footer">
+                    <button class="btn-secondary" @onclick="Cancel">@(IsInitialSetup ? "Overslaan" : "Annuleren")</button>
+                    <button class="btn-primary" @onclick="Confirm" disabled="@string.IsNullOrWhiteSpace(Title)">@(IsInitialSetup ? "Campagne Starten" : "Opslaan")</button>
+                </div>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public EventCallback<bool> OnClosed { get; set; }
+
+    public bool IsVisible { get; private set; }
+    public bool IsInitialSetup { get; private set; } = true;
+
+    public string Title { get; set; } = "";
+    public string DungeonMaster { get; set; } = "";
+    public string Setting { get; set; } = "";
+    public string System { get; set; } = "D&D 5e (2024)";
+    public string Pitch { get; set; } = "";
+    public bool CreateStandardFolders { get; set; } = true;
+
+    private TaskCompletionSource<bool>? _tcs;
+
+    public Task<bool> ShowAsync(bool isInitial = false)
+    {
+        IsInitialSetup = isInitial;
+        CreateStandardFolders = isInitial;
+        _tcs = new TaskCompletionSource<bool>();
+
+        if (!isInitial && CampaignState.Current?.Readme is not null)
+        {
+            ParseExistingReadme();
+        }
+        else if (isInitial)
+        {
+            Title = "";
+            DungeonMaster = "";
+            Setting = "";
+            System = "D&D 5e (2024)";
+            Pitch = "";
+        }
+
+        IsVisible = true;
+        StateHasChanged();
+        return _tcs.Task;
+    }
+
+    private async void ParseExistingReadme()
+    {
+        try
+        {
+            var content = await CampaignState.ReadDocumentAsync("README.md") ?? "";
+            Title = CampaignState.Current?.CampaignTitle ?? "";
+            
+            var lines = content.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("**Dungeon Master:**", StringComparison.OrdinalIgnoreCase))
+                    DungeonMaster = line.Substring("**Dungeon Master:**".Length).Trim();
+                else if (line.StartsWith("**Setting:**", StringComparison.OrdinalIgnoreCase))
+                    Setting = line.Substring("**Setting:**".Length).Trim();
+                else if (line.StartsWith("**Systeem:**", StringComparison.OrdinalIgnoreCase))
+                    System = line.Substring("**Systeem:**".Length).Trim();
+            }
+
+            var descIdx = content.IndexOf("## Beschrijving", StringComparison.OrdinalIgnoreCase);
+            if (descIdx >= 0)
+            {
+                var afterDesc = content.Substring(descIdx + "## Beschrijving".Length).TrimStart();
+                var nextHeaderIdx = afterDesc.IndexOf("## ", StringComparison.Ordinal);
+                Pitch = nextHeaderIdx >= 0 ? afterDesc.Substring(0, nextHeaderIdx).Trim() : afterDesc.Trim();
+            }
+            StateHasChanged();
+        }
+        catch
+        {
+            // Fallback to defaults
+        }
+    }
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        _tcs?.TrySetResult(false);
+        await OnClosed.InvokeAsync(false);
+        StateHasChanged();
+    }
+
+    private async Task Confirm()
+    {
+        if (string.IsNullOrWhiteSpace(Title)) return;
+
+        var content = $@"# {Title}
+
+{(string.IsNullOrWhiteSpace(DungeonMaster) ? "" : $"**Dungeon Master:** {DungeonMaster}  \n")}{(string.IsNullOrWhiteSpace(Setting) ? "" : $"**Setting:** {Setting}  \n")}{(string.IsNullOrWhiteSpace(System) ? "" : $"**Systeem:** {System}  \n")}
+## Beschrijving
+{(string.IsNullOrWhiteSpace(Pitch) ? "Algemene beschrijving van de campagne..." : Pitch)}
+
+## Huisregels & Afspraken
+- 
+
+## Thema's & Sfeer
+- 
+";
+
+        await CampaignState.WriteDocumentAsync("README.md", content);
+
+        if (IsInitialSetup && CreateStandardFolders)
+        {
+            var standardFolders = new[] { "Sessions", "NPCs", "Locations", "Lore", "PCs", "Items", "Handouts" };
+            foreach (var folder in standardFolders)
+            {
+                var keepPath = $"{folder}/.gitkeep";
+                if (!await CampaignState.ReadDocumentAsync(keepPath).ContinueWith(t => t.Result is not null))
+                {
+                    await CampaignState.WriteDocumentAsync(keepPath, "");
+                }
+            }
+        }
+
+        IsVisible = false;
+        await CampaignState.RefreshAsync();
+        _tcs?.TrySetResult(true);
+        await OnClosed.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(Title))
+        {
+            await Confirm();
+        }
+        else if (e.Key == "Escape")
+        {
+            await Cancel();
+        }
+    }
+}

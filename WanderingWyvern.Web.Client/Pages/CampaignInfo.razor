@@ -1,0 +1,93 @@
+@implements IDisposable
+@inject CampaignClientState CampaignState
+@inject CampaignMarkdownRenderer Renderer
+
+<PageTitle>Campagne-informatie - @(CampaignState.Current?.CampaignTitle ?? "The Wandering Wyvern")</PageTitle>
+
+<div class="page-container">
+    <a class="back-link" href="/">&larr; Terug naar overzicht</a>
+
+    @if (CampaignState.Current is null)
+    {
+        <CampaignFolderPicker />
+    }
+    else
+    {
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <span class="eyebrow">Campagne-overzicht</span>
+                <h1 style="margin: 0.25rem 0 0;">@(CampaignState.Current.CampaignTitle)</h1>
+            </div>
+            <button class="btn-secondary" @onclick="OpenSetupModal">
+                Formulier bewerken
+            </button>
+        </div>
+
+        @if (CampaignState.Current.Readme is null)
+        {
+            <div class="empty-state" style="text-align: center; padding: 2.5rem; background: var(--parchment-1); border: 1px dashed var(--border-soft); border-radius: 8px;">
+                <p style="font-size: 1.1rem; margin-bottom: 1rem;">Er is nog geen <code>README.md</code> gevonden voor deze campagne.</p>
+                <button class="btn-primary" @onclick="CreateReadme">Campagne-informatie aanmaken</button>
+            </div>
+        }
+        else
+        {
+            <article class="markdown-document">
+                <EditableDocument RelativePath="README.md" Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")" />
+            </article>
+        }
+
+        <CampaignSetupModal @ref="_setupModal" />
+    }
+</div>
+
+@code {
+    private CampaignSetupModal _setupModal = default!;
+    private string? _renderedHtml;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadReadmeAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private async Task LoadReadmeAsync()
+    {
+        if (CampaignState.Current is { } index && index.Readme is { } readme)
+        {
+            _renderedHtml = await Renderer.RenderToHtmlAsync(readme, index);
+        }
+        else
+        {
+            _renderedHtml = null;
+        }
+    }
+
+    private void HandleChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            await LoadReadmeAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task OpenSetupModal()
+    {
+        await _setupModal.ShowAsync(isInitial: false);
+    }
+
+    private async Task CreateReadme()
+    {
+        await _setupModal.ShowAsync(isInitial: true);
+    }
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}

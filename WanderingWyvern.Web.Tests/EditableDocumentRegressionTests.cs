@@ -58,6 +58,48 @@ public sealed class EditableDocumentRegressionTests
         Assert.IsTrue(buttonBox.Y + buttonBox.Height <= rowBox.Y + rowBox.Height, "Button should fit within the header row's vertical bounds.");
     }
 
+    [TestMethod]
+    public async Task EditMode_SupportsFullscreenToggleAndGenerousHeight()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/test/editable-document");
+
+        var editButton = page.Locator(".editable-document-actions button");
+        await editButton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        await editButton.ClickAsync();
+
+        // Editor container and textarea should be displayed
+        var editor = page.Locator(".editable-document-edit");
+        var textarea = page.Locator(".editable-document-edit textarea");
+        await editor.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        var initialTextareaBox = await textarea.BoundingBoxAsync();
+        Assert.IsNotNull(initialTextareaBox);
+        // Default height is 60vh (at 800px viewport, should be ~480px, well over 400px)
+        Assert.IsTrue(initialTextareaBox.Height >= 400, $"Textarea should have generous default height, got {initialTextareaBox.Height}px");
+
+        // Click fullscreen toggle button
+        var fullscreenBtn = page.Locator(".fullscreen-toggle-btn").First;
+        await fullscreenBtn.ClickAsync();
+
+        var fullscreenEditor = page.Locator(".editable-document-edit.is-fullscreen");
+        await fullscreenEditor.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        var fsTextareaBox = await textarea.BoundingBoxAsync();
+        Assert.IsNotNull(fsTextareaBox);
+        Assert.IsTrue(fsTextareaBox.Height > initialTextareaBox.Height, "Fullscreen textarea should be taller than windowed mode");
+        Assert.IsTrue(fsTextareaBox.Width >= 1200, "Fullscreen textarea should span almost full viewport width");
+
+        // Click toggle button to exit fullscreen
+        await fullscreenBtn.ClickAsync();
+        await page.Locator(".editable-document-edit:not(.is-fullscreen)").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+    }
+
     private static Task MarkClientReadyAsync(IBrowserContext context)
     {
         return context.AddInitScriptAsync(

@@ -124,6 +124,30 @@ public sealed class NavigationRegressionTests
             "loading => loading.classList.contains('is-hidden')"));
     }
 
+    [TestMethod]
+    public async Task DirectNavigationToCampaignInfo_RendersWithoutServerException()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        
+        // Navigate directly to /campaign-info
+        var response = await page.GotoAsync($"{_fixture.BaseUrl}/campaign-info");
+        Assert.IsNotNull(response);
+        Assert.AreEqual(200, response.Status);
+
+        // Ensure page content loaded and no unhandled server exception is displayed
+        var heading = page.Locator("h1, .folder-welcome, .page-container");
+        await heading.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        var bodyText = await page.InnerTextAsync("body");
+        Assert.IsFalse(bodyText.Contains("An unhandled exception occurred"), "Page should not display an unhandled server exception.");
+        Assert.IsFalse(bodyText.Contains("InvalidOperationException"), "Page should not display an InvalidOperationException.");
+    }
+
     private static void AssertInRange(double actual, double minimum, double maximum)
     {
         Assert.IsTrue(

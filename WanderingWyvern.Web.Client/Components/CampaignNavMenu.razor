@@ -5,6 +5,11 @@
 
 @if (CampaignState.Current is { } index)
 {
+    <div class="nav-section-title">Campagne</div>
+    <a class="nav-link" href="/campaign-info">
+        <span class="nav-link-icon">ℹ️</span> Algemene info
+    </a>
+
     <div class="nav-section-title">Sessies</div>
     @foreach (var session in index.Sessions)
     {
