@@ -1,4 +1,119 @@
 @page "/test/session-view"
+@using System.IO
 
 <DhrMaes.WanderingWyvern.Web.Client.Pages.SessionViewTestPage
+    Slug="@_slug"
+    OutlineContent="@_outlineContent"
+    ScriptContent="@_scriptContent"
+    LiveNotesContent="@_liveNotesContent"
     @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+
+@code {
+    private string _slug = "session-01-the-beginning";
+    private string _outlineContent = string.Empty;
+    private string _scriptContent = string.Empty;
+    private string _liveNotesContent = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        var campaignDir = @"C:\Users\ArneMA\OneDrive - Skyline Communications NV\Personal\Dnd\Echoes of the Underdark\Sessions\session-01-echoes-of-the-underdark";
+        if (!Directory.Exists(campaignDir))
+        {
+            campaignDir = @"C:\Users\ArneMA\OneDrive - Skyline Communications NV\Personal\Dnd\MyCampaign\Sessions\session-01-the-beginning";
+        }
+        if (Directory.Exists(campaignDir))
+        {
+            var outlinePath = Path.Combine(campaignDir, "outline.md");
+            var scriptPath = Path.Combine(campaignDir, "script.md");
+            var notesPath = Path.Combine(campaignDir, "live-notes.md");
+
+            if (File.Exists(outlinePath)) _outlineContent = File.ReadAllText(outlinePath);
+            if (File.Exists(scriptPath)) _scriptContent = File.ReadAllText(scriptPath);
+            if (File.Exists(notesPath)) _liveNotesContent = File.ReadAllText(notesPath);
+        }
+
+        if (string.IsNullOrWhiteSpace(_scriptContent))
+        {
+            _outlineContent = """
+                # Sessie 1 — The beginning
+
+                **Sessie:** 1
+                **Datum:** 2026-11-09
+
+                ## Doel van de sessie
+                De spelers bereiken het kruispunt en moeten kiezen welke route ze nemen naar de oude ruïne, waar een confrontatie wacht.
+
+                ## Scènes
+                1. **🚪 Scène 1 — Het Kruispunt:** Keuzepunt
+                2. **🔍 Scène 2 — Het Vergeten Moeras:** Verkenning
+                3. **🗣️ Scène 3 — De Verlaten Wachttoren:** Sociaal
+                4. **⚔️ Scène 4 — De Oude Ruïne:** Gevecht
+                5. **🏕️ Scène 5 — Kampvuur & Epiloog:** Rust
+                ## Benodigde NPCs/Locaties/Items
+                - Geen gekoppelde entiteiten.
+                """;
+
+            _scriptContent = """
+                # Sessie 1 — The beginning (Script)
+
+                **Datum:** 2026-11-09
+                *Regie- en voorleesscript voor de DM. Zie ook `outline.md`.*
+
+                ```mermaid
+                flowchart TD
+                    S1["🚪 Scène 1 — Het Kruispunt"]
+                    S2["🔍 Scène 2 — Het Vergeten Moeras"]
+                    S3["🗣️ Scène 3 — De Verlaten Wachttoren"]
+                    S4["⚔️ Scène 4 — De Oude Ruïne"]
+                    S5["🏕️ Scène 5 — Kampvuur & Epiloog"]
+                    S1 -->|Kies het linkerpad (Moeras)| S2
+                    S1 -->|Kies het rechterpad (Wachttoren)| S3
+                    S2 -->|Volg het oude stenen pad| S4
+                    S3 -->|Beklim de heuvelkam| S4
+                    S4 -->|Na het gevecht| S5
+                    %% positions: S1:280,60;S2:40,300;S3:360,300;S4:280,540;S5:280,780
+                ```
+
+                ## 🚪 Scène 1 — Het Kruispunt
+                > Voor jullie splitst het pad zich in tweeën. Links voert een modderig spoor diep een mistig moeras in, waar het geluid van krekels plotseling verstomt. Rechts kronkelt een rotsachtig pad omhoog naar een oude, verweerde wachttoren die boven de bomen uitsteekt.
+
+                *Wat doen de spelers?*
+                - **Survival-check (DC 12):** Bij succes ontdekken ze verse sporen van goblins richting het moeras, maar ook rookpluimpjes bij de wachttoren.
+
+                ## 🔍 Scène 2 — Het Vergeten Moeras
+                > De mist trekt om jullie enkels als het pad verdwijnt in drassige grond. Tussen de dode wilgen glinstert een oud ornament half verzonken in het slijk.
+
+                *Onderzoek van het moeras:*
+                - **Perception-check DC 13:** Ze zien de drijfzandplek op tijd.
+                - **Investigation-check DC 15:** Ze vinden een half verrotte tas met 25 gp en een geheimzinnige brief.
+
+                ## 🗣️ Scène 3 — De Verlaten Wachttoren
+                > De wachttoren lijkt op het eerste gezicht verlaten, maar bij de ingang wappert een gerafelde banier. Bovenin klinkt een zacht gestommel en het schrapen van metaal.
+
+                *Ontmoeting bij de toren:*
+                - Hier schuilt een gewonde deserteur of reiziger. Met een **Persuasion-check (DC 11)** deelt hij informatie over de ruïne verderop.
+
+                ## ⚔️ Scène 4 — De Oude Ruïne
+                > De bomen wijken uiteen voor de brokstukken van een eeuwenoude tempel. Te midden van het altaar staan bewakers met getrokken wapens gereed.
+
+                *Encounter:*
+                - 3x Bandits / Goblins die het heiligdom bewaken.
+                - Tactiek: Ze gebruiken de zuilen als halve dekking (+2 AC).
+
+                ## 🏕️ Scène 5 — Kampvuur & Epiloog
+                > Met de bewakers verslagen daalt de rust weer neer. De zon zakt achter de heuvels en werpt lange schaduwen over de geopende schatkist.
+
+                - Rustmoment: Korte of lange rust.
+                - Verdeling van loot en geheimen voor de volgende sessie.
+                """;
+
+            _liveNotesContent = """
+                # Live Notes — Sessie 1 (The beginning)
+
+                *Tijdens het spelen via The Wandering Wyvern worden gekozen paden en notities hier automatisch bijgehouden.*
+                - **20:48** — Keuze gemaakt: Kies het linkerpad (Moeras) ➔ 🔍 Scène 2 — Het Vergeten Moeras
+                - **16:49** — 👥 De groep splitst zich op: Groep A ➔ 🔍 Scène 2 — Het Vergeten Moeras, Groep B ➔ 🗣️ Scène 3 — De Verlaten Wachttoren
+                """;
+        }
+    }
+}

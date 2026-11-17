@@ -25,9 +25,18 @@ public sealed class CampaignClientState : IAsyncDisposable
 
     public CampaignIndex? Current { get; private set; }
 
-    public void SetCurrentForTesting(CampaignIndex index)
+    private readonly Dictionary<string, string> _testDocuments = new(StringComparer.OrdinalIgnoreCase);
+
+    public void SetCurrentForTesting(CampaignIndex index, IDictionary<string, string>? documents = null)
     {
         Current = index;
+        if (documents is not null)
+        {
+            foreach (var kvp in documents)
+            {
+                _testDocuments[kvp.Key] = kvp.Value;
+            }
+        }
         Changed?.Invoke();
     }
 
@@ -143,6 +152,9 @@ public sealed class CampaignClientState : IAsyncDisposable
         string relativePath,
         CancellationToken cancellationToken = default)
     {
+        if (_testDocuments.TryGetValue(relativePath, out var testDoc))
+            return testDoc;
+
         return await _contentStore.ExistsAsync(relativePath, cancellationToken)
             ? await _contentStore.ReadTextAsync(relativePath, cancellationToken)
             : null;
@@ -153,6 +165,12 @@ public sealed class CampaignClientState : IAsyncDisposable
         string content,
         CancellationToken cancellationToken = default)
     {
+        if (_testDocuments.ContainsKey(relativePath))
+        {
+            _testDocuments[relativePath] = content;
+            return;
+        }
+
         await _contentStore.WriteTextAsync(relativePath, content, cancellationToken);
     }
 
@@ -161,6 +179,9 @@ public sealed class CampaignClientState : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var path = $"Sessions/{sessionSlug}/live-notes.md";
+        if (_testDocuments.TryGetValue(path, out var testNotes))
+            return testNotes;
+
         return await _contentStore.ExistsAsync(path, cancellationToken)
             ? await _contentStore.ReadTextAsync(path, cancellationToken)
             : null;
@@ -175,6 +196,13 @@ public sealed class CampaignClientState : IAsyncDisposable
             return;
 
         var path = $"Sessions/{sessionSlug}/live-notes.md";
+        if (_testDocuments.TryGetValue(path, out var existing))
+        {
+            var testTimestamp = DateTime.Now.ToString("HH:mm");
+            _testDocuments[path] = existing + $"- **{testTimestamp}** — {note.Trim()}\n";
+            return;
+        }
+
         if (!await _contentStore.ExistsAsync(path, cancellationToken))
             await _contentStore.WriteTextAsync(path, "# Live notities\n\n", cancellationToken);
 

@@ -19,7 +19,17 @@ public sealed class CampaignEntity
 
     public IReadOnlyList<string> Maps { get; init; } = [];
 
+    public IReadOnlyList<string> OtherFiles { get; init; } = [];
+
     public string? IconImage { get; init; }
+
+    public bool IsCharacter => Type == CampaignEntityType.Npc || Type == CampaignEntityType.Pc;
+
+    public string? PortraitImage =>
+        Images.FirstOrDefault(img => !img.Contains("standee", StringComparison.OrdinalIgnoreCase)) ?? CardImage;
+
+    public IReadOnlyList<string> StandeeImages =>
+        Images.Where(img => img.Contains("standee", StringComparison.OrdinalIgnoreCase)).ToArray();
 
     public CampaignDocument? PrimaryDocument
     {

@@ -33,8 +33,16 @@ public sealed class CampaignMarkdownRenderer
         CancellationToken cancellationToken = default)
     {
         var markdown = await _contentStore.ReadTextAsync(document.RelativePath, cancellationToken);
+        return RenderMarkdownSnippetToHtml(markdown, document.RelativePath, index);
+    }
+
+    public string RenderMarkdownSnippetToHtml(
+        string markdown,
+        string documentRelativePath,
+        CampaignIndex index)
+    {
         var parsedDocument = Markdown.Parse(markdown, _pipeline);
-        var currentDirectory = GetRelativeDirectory(document.RelativePath);
+        var currentDirectory = GetRelativeDirectory(documentRelativePath);
 
         foreach (var link in parsedDocument.Descendants<LinkInline>())
             RewriteLinkIfResolvable(link, currentDirectory, index);

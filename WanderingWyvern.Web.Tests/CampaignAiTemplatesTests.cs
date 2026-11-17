@@ -58,8 +58,9 @@ public sealed class CampaignAiTemplatesTests
         {
             var relativePath = Path.GetRelativePath(templateDir, file).Replace('\\', '/');
             Assert.IsTrue(CampaignAiTemplates.Files.ContainsKey(relativePath), $"Missing template key: {relativePath}");
-            var diskContent = File.ReadAllText(file);
-            Assert.AreEqual(diskContent, CampaignAiTemplates.Files[relativePath], $"Content mismatch for template: {relativePath}");
+            var diskContent = File.ReadAllText(file).Replace("\r\n", "\n");
+            var templateContent = CampaignAiTemplates.Files[relativePath].Replace("\r\n", "\n");
+            Assert.AreEqual(diskContent, templateContent, $"Content mismatch for template: {relativePath}");
         }
     }
 

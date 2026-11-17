@@ -33,6 +33,7 @@ public record EntityCreateResult(
     string SessionDate = "",
     string SessionLocation = "",
     string SessionObjective = "",
+    string SessionTemplate = "fork",
     // Item common fields
     string ItemType = "",
     string ItemRarity = "",

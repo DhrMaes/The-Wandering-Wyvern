@@ -1,8 +1,9 @@
 @implements IDisposable
 @inject CampaignClientState CampaignState
 @inject CampaignMarkdownRenderer Renderer
+@inject IJSRuntime JS
 
-<PageTitle>@(_document?.Title ?? RelativePath)</PageTitle>
+<PageTitle>@(_entity?.Title ?? _document?.Title ?? RelativePath)</PageTitle>
 
 <div class="page-container">
     <a class="back-link" href="/">&larr; Terug naar overzicht</a>
@@ -11,16 +12,220 @@
     {
         <CampaignFolderPicker />
     }
-    else if (_document is null)
+    else if (_document is null && _entity is null)
     {
         <p><em>Document niet gevonden: @RelativePath</em></p>
+    }
+    else if (_entity is not null)
+    {
+        <div class="entity-hero-banner">
+            <div class="entity-hero-visual">
+                @if (!string.IsNullOrEmpty(_portraitUrl))
+                {
+                    <img class="entity-hero-avatar clickable" src="@_portraitUrl" alt="@_entity.Title"
+                         title="Klik om te vergroten" @onclick='() => OpenLightbox(_portraitUrl, _entity.Title, "Portret")' />
+                }
+                else
+                {
+                    <div class="entity-hero-placeholder">@GetEntityIcon(_entity.Type)</div>
+                }
+            </div>
+
+            <div class="entity-hero-details">
+                <div class="entity-hero-top">
+                    <span class="entity-type-badge">@GetEntityBadge(_entity.Type)</span>
+                    <span class="entity-folder-path">📂 @_entity.RelativeFolderPath</span>
+                </div>
+
+                <h1 class="entity-hero-title">@_entity.Title</h1>
+
+                @if (_metadataItems.Count > 0)
+                {
+                    <div class="entity-meta-pills">
+                        @foreach (var meta in _metadataItems)
+                        {
+                            <span class="entity-meta-pill" title="@meta.Label">
+                                <span class="meta-icon">@meta.Icon</span>
+                                <span class="meta-label">@meta.Label:</span>
+                                <span class="meta-value">@meta.Value</span>
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <nav class="entity-tab-strip" aria-label="Entiteit onderdelen">
+            <button type="button" class="entity-tab-btn @(_activeTab == EntityTab.Primary ? "is-active" : "")"
+                    @onclick="() => SetTab(EntityTab.Primary)">
+                📜 @(_entity.IsCharacter ? "Karakterblad" : (_primaryDocument?.Title ?? "Hoofddocument"))
+            </button>
+
+            <button type="button" class="entity-tab-btn @(_activeTab == EntityTab.Logboek ? "is-active" : "")"
+                    @onclick="() => SetTab(EntityTab.Logboek)">
+                📓 Logboek @(_logboekDocument is not null ? "" : "(Nieuw)")
+            </button>
+
+            <button type="button" class="entity-tab-btn @(_activeTab == EntityTab.Images ? "is-active" : "")"
+                    @onclick="() => SetTab(EntityTab.Images)">
+                🖼️ Afbeeldingen & Standees (@_imagePreviews.Count)
+            </button>
+
+            @if (_imagePromptDocument is not null)
+            {
+                <button type="button" class="entity-tab-btn @(_activeTab == EntityTab.ImagePrompt ? "is-active" : "")"
+                        @onclick="() => SetTab(EntityTab.ImagePrompt)">
+                    🎨 Image Prompt
+                </button>
+            }
+
+            @foreach (var doc in _otherDocuments)
+            {
+                <button type="button" class="entity-tab-btn @(_activeTab == EntityTab.OtherDoc && _activeOtherDoc?.RelativePath == doc.RelativePath ? "is-active" : "")"
+                        @onclick="() => SetOtherDocTab(doc)">
+                    📄 @doc.Title
+                </button>
+            }
+        </nav>
+
+        <div class="entity-tab-body">
+            @if (_activeTab == EntityTab.Primary && _primaryDocument is not null)
+            {
+                <article class="markdown-document">
+                    <EditableDocument RelativePath="@_primaryDocument.RelativePath" Html="@(_primaryHtml ?? "<p><em>Laden...</em></p>")" />
+                </article>
+            }
+            else if (_activeTab == EntityTab.Logboek)
+            {
+                @if (_logboekDocument is not null)
+                {
+                    <article class="markdown-document">
+                        <EditableDocument RelativePath="@_logboekDocument.RelativePath" Html="@(_logboekHtml ?? "<p><em>Laden...</em></p>")" />
+                    </article>
+                }
+                else
+                {
+                    <div class="entity-empty-tab-card">
+                        <div class="entity-empty-icon">📓</div>
+                        <h3>Nog geen logboek voor @_entity.Title</h3>
+                        <p>
+                            In het logboek houd je per gespeelde sessie bij wat @_entity.Title heeft meegemaakt,
+                            welke beloften zijn gedaan, en hoe de relatie met de spelersgroep evolueert.
+                        </p>
+                        <button type="button" class="btn-primary" @onclick="CreateLogboekAsync" disabled="@_isCreatingLogboek">
+                            @(_isCreatingLogboek ? "Aanmaken..." : "➕ Logboek aanmaken")
+                        </button>
+                    </div>
+                }
+            }
+            else if (_activeTab == EntityTab.Images)
+            {
+                @if (_imagePreviews.Count > 0)
+                {
+                    <div class="entity-image-grid">
+                        @foreach (var img in _imagePreviews)
+                        {
+                            <div class="entity-image-card">
+                                <div class="entity-image-preview clickable" @onclick="() => OpenLightbox(img.Url, img.Title, img.Category)">
+                                    <img src="@img.Url" alt="@img.Title" loading="lazy" />
+                                </div>
+                                <div class="entity-image-info">
+                                    <span class="entity-image-badge">@img.Category</span>
+                                    <div class="entity-image-filename" title="@img.Path">@img.FileName</div>
+                                    <div class="entity-image-actions">
+                                        <button type="button" class="btn-secondary btn-sm" @onclick="() => OpenLightbox(img.Url, img.Title, img.Category)">
+                                            🔍 Vergroot
+                                        </button>
+                                        <a class="btn-secondary btn-sm" href="@img.Url" target="_blank" download="@img.FileName">
+                                            ⬇ Opslaan
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="entity-empty-tab-card">
+                        <div class="entity-empty-icon">🖼️</div>
+                        <h3>Geen afbeeldingen of standees gevonden</h3>
+                        <p>Plaats een bestand in de map <code>@_entity.RelativeFolderPath/</code>:</p>
+                        <ul class="entity-empty-guide-list">
+                            <li><strong>Portret:</strong> <code>@(_entity.Slug).png</code> of <code>.jpg</code> (ongeveer 3:4 of 16:9 verhouding)</li>
+                            <li><strong>Icoon / Token:</strong> <code>@(_entity.Slug).icon.png</code> (vierkant voor de compacte kaartjes)</li>
+                            <li><strong>3D Standee:</strong> <code>@(_entity.Slug)-standee.png</code> (dubbelzijdige miniatuur voor 3D houdertjes)</li>
+                        </ul>
+                        @if (_imagePromptDocument is not null)
+                        {
+                            <button type="button" class="btn-secondary btn-sm" style="margin-top: 1rem;" @onclick="() => SetTab(EntityTab.ImagePrompt)">
+                                🎨 Bekijk de Image Generation Prompt
+                            </button>
+                        }
+                    </div>
+                }
+
+                <div class="standee-info-card">
+                    <div class="standee-info-icon">✂️</div>
+                    <div class="standee-info-content">
+                        <h4>3D Standees & Tafelminiaturen</h4>
+                        <p>
+                            Maak gebruik van de <strong>standee-sheet-creator</strong> skill om dubbelzijdige A4 printklare standees te genereren.
+                            Geprepareerd voor 3D-geprinte OpenSCAD houdertjes met <strong>16.5–16.6 mm voetbreedte</strong> en <strong>9 mm insteekhoogte</strong>.
+                        </p>
+                    </div>
+                </div>
+
+                @if (_entity.OtherFiles.Count > 0)
+                {
+                    <div class="entity-other-files-box">
+                        <h4>Overige bestanden (@_entity.OtherFiles.Count)</h4>
+                        <ul class="entity-other-files-list">
+                            @foreach (var file in _entity.OtherFiles)
+                            {
+                                <li>
+                                    <span>📄 @Path.GetFileName(file)</span>
+                                    <span class="file-path">@file</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            }
+            else if (_activeTab == EntityTab.ImagePrompt && _imagePromptDocument is not null)
+            {
+                <div class="image-prompt-header-box">
+                    <div class="image-prompt-intro">
+                        <h3>🎨 AI Image Generation Prompt</h3>
+                        <p>Kopieer deze prompt rechtstreeks naar een AI image generator (zoals Gemini Imagen, Midjourney of DALL-E) om een bijpassend portret of standee te maken.</p>
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm" @onclick="CopyImagePromptAsync">
+                        @(_hasCopiedPrompt ? "✅ Gekopieerd!" : "📋 Kopieer Prompt")
+                    </button>
+                </div>
+                <article class="markdown-document">
+                    <EditableDocument RelativePath="@_imagePromptDocument.RelativePath" Html="@(_imagePromptHtml ?? "<p><em>Laden...</em></p>")" />
+                </article>
+            }
+            else if (_activeTab == EntityTab.OtherDoc && _activeOtherDoc is not null)
+            {
+                <article class="markdown-document">
+                    <EditableDocument RelativePath="@_activeOtherDoc.RelativePath" Html="@(_activeOtherHtml ?? "<p><em>Laden...</em></p>")" />
+                </article>
+            }
+        </div>
+
+        @if (_locationMaps.Count > 0 && _activeTab == EntityTab.Primary)
+        {
+            <LocationMaps Maps="_locationMaps" />
+        }
     }
     else
     {
         <article class="markdown-document">
             <EditableDocument RelativePath="@RelativePath" Html="@(_renderedHtml ?? "<p><em>Laden...</em></p>")">
                 <Header>
-                    @if (!_document.HasExplicitTitle)
+                    @if (!_document!.HasExplicitTitle)
                     {
                         <h1>@_document.Title</h1>
                     }
@@ -34,14 +239,68 @@
     }
 </div>
 
+@if (_lightboxImage is not null)
+{
+    <div class="campaign-reference-backdrop" @onclick="CloseLightbox">
+        <section class="location-map-modal" role="dialog" aria-modal="true" aria-labelledby="lightbox-title" @onclick:stopPropagation>
+            <div class="location-map-modal-header">
+                <div class="reference-modal-title-group">
+                    <h2 id="lightbox-title">@_lightboxImage.Title</h2>
+                    <span class="entity-image-badge">@_lightboxImage.Category</span>
+                </div>
+                <div class="reference-modal-actions">
+                    <a class="btn-secondary btn-sm" href="@_lightboxImage.Url" target="_blank" download>
+                        ⬇ Download
+                    </a>
+                    <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="CloseLightbox">×</button>
+                </div>
+            </div>
+            <div class="location-map-modal-body" style="text-align: center; padding: 1.5rem;">
+                <img src="@_lightboxImage.Url" alt="@_lightboxImage.Title" style="max-height: 75vh; max-width: 100%; border-radius: 8px; box-shadow: var(--shadow-deep);" />
+            </div>
+        </section>
+    </div>
+}
+
 @code {
     [Parameter]
     public required string RelativePath { get; set; }
 
+    private enum EntityTab
+    {
+        Primary,
+        Logboek,
+        Images,
+        ImagePrompt,
+        OtherDoc
+    }
+
+    private sealed record ImagePreviewItem(string Path, string Url, string FileName, string Title, string Category);
+    private sealed record LightboxItem(string Url, string Title, string Category);
+
     private CampaignDocument? _document;
-    private CampaignEntity? _location;
+    private CampaignEntity? _entity;
+    private CampaignDocument? _primaryDocument;
+    private CampaignDocument? _logboekDocument;
+    private CampaignDocument? _imagePromptDocument;
+    private IReadOnlyList<CampaignDocument> _otherDocuments = [];
+    private CampaignDocument? _activeOtherDoc;
+
+    private EntityTab _activeTab = EntityTab.Primary;
+    private string? _portraitUrl;
+    private IReadOnlyList<EntityMetaItem> _metadataItems = [];
+    private List<ImagePreviewItem> _imagePreviews = [];
     private IReadOnlyList<string> _locationMaps = [];
+
+    private string? _primaryHtml;
+    private string? _logboekHtml;
+    private string? _imagePromptHtml;
+    private string? _activeOtherHtml;
     private string? _renderedHtml;
+
+    private LightboxItem? _lightboxImage;
+    private bool _isCreatingLogboek;
+    private bool _hasCopiedPrompt;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -55,17 +314,185 @@
 
     private async Task LoadDocumentAsync()
     {
-        _document = CampaignState.Current?.FindDocument(RelativePath);
-        _location = CampaignState.Current?.FindEntityForDocument(RelativePath);
-        _renderedHtml = _document is not null && CampaignState.Current is not null
-            ? await Renderer.RenderToHtmlAsync(_document, CampaignState.Current)
-            : null;
-        _locationMaps = _location?.Maps
-            .Where(map => _renderedHtml is null || !ContainsImageReference(_renderedHtml, map))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray()
-            ?? [];
+        if (CampaignState.Current is null) return;
+
+        _document = CampaignState.Current.FindDocument(RelativePath);
+        _entity = CampaignState.Current.FindEntityForDocument(RelativePath);
+
+        if (_entity is not null)
+        {
+            _primaryDocument = _entity.PrimaryDocument;
+            _logboekDocument = _entity.Documents.Values.FirstOrDefault(d => d.FileName.Equals("logboek", StringComparison.OrdinalIgnoreCase));
+            _imagePromptDocument = _entity.Documents.Values.FirstOrDefault(d => d.FileName.EndsWith(".image-prompt", StringComparison.OrdinalIgnoreCase));
+            _otherDocuments = _entity.Documents.Values
+                .Where(d => d != _primaryDocument && d != _logboekDocument && d != _imagePromptDocument)
+                .ToArray();
+
+            // Load portrait URL
+            _portraitUrl = _entity.PortraitImage is { } portraitPath
+                ? await CampaignState.ReadAssetUrlAsync(portraitPath)
+                : null;
+
+            // Load all image previews
+            _imagePreviews = new List<ImagePreviewItem>();
+            foreach (var imgPath in _entity.Images)
+            {
+                var fileName = Path.GetFileName(imgPath);
+                var isStandee = imgPath.Contains("standee", StringComparison.OrdinalIgnoreCase);
+                var isIcon = Path.GetFileNameWithoutExtension(imgPath).EndsWith(".icon", StringComparison.OrdinalIgnoreCase);
+                var category = isStandee ? "✂️ 3D Standee (16.6 mm voet)" : isIcon ? "🪙 Token / Icoon" : "🖼️ Portret / Handout";
+                var title = Humanize(Path.GetFileNameWithoutExtension(imgPath).Replace(".icon", ""));
+                var url = await CampaignState.ReadAssetUrlAsync(imgPath);
+                _imagePreviews.Add(new ImagePreviewItem(imgPath, url, fileName, title, category));
+            }
+
+            // Extract metadata from primary document
+            if (_primaryDocument is not null)
+            {
+                var content = await CampaignState.ReadDocumentAsync(_primaryDocument.RelativePath);
+                _metadataItems = EntityMetadataExtractor.Extract(content, _entity.Type);
+                _primaryHtml = await Renderer.RenderToHtmlAsync(_primaryDocument, CampaignState.Current);
+            }
+
+            // Load logboek HTML if present
+            if (_logboekDocument is not null)
+            {
+                _logboekHtml = await Renderer.RenderToHtmlAsync(_logboekDocument, CampaignState.Current);
+            }
+
+            // Load image prompt HTML if present
+            if (_imagePromptDocument is not null)
+            {
+                _imagePromptHtml = await Renderer.RenderToHtmlAsync(_imagePromptDocument, CampaignState.Current);
+            }
+
+            // Determine active tab
+            if (RelativePath.EndsWith("logboek.md", StringComparison.OrdinalIgnoreCase))
+            {
+                _activeTab = EntityTab.Logboek;
+            }
+            else if (RelativePath.EndsWith(".image-prompt.md", StringComparison.OrdinalIgnoreCase))
+            {
+                _activeTab = EntityTab.ImagePrompt;
+            }
+            else if (_otherDocuments.FirstOrDefault(d => d.RelativePath.Equals(RelativePath, StringComparison.OrdinalIgnoreCase)) is { } other)
+            {
+                _activeTab = EntityTab.OtherDoc;
+                _activeOtherDoc = other;
+                _activeOtherHtml = await Renderer.RenderToHtmlAsync(other, CampaignState.Current);
+            }
+            else
+            {
+                _activeTab = EntityTab.Primary;
+            }
+
+            _locationMaps = _entity.Maps
+                .Where(map => _primaryHtml is null || !ContainsImageReference(_primaryHtml, map))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        else if (_document is not null)
+        {
+            _renderedHtml = await Renderer.RenderToHtmlAsync(_document, CampaignState.Current);
+            _locationMaps = [];
+        }
     }
+
+    private async Task SetTab(EntityTab tab)
+    {
+        _activeTab = tab;
+        if (tab == EntityTab.Logboek && _logboekDocument is not null && _logboekHtml is null && CampaignState.Current is not null)
+        {
+            _logboekHtml = await Renderer.RenderToHtmlAsync(_logboekDocument, CampaignState.Current);
+        }
+        else if (tab == EntityTab.ImagePrompt && _imagePromptDocument is not null && _imagePromptHtml is null && CampaignState.Current is not null)
+        {
+            _imagePromptHtml = await Renderer.RenderToHtmlAsync(_imagePromptDocument, CampaignState.Current);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SetOtherDocTab(CampaignDocument doc)
+    {
+        _activeTab = EntityTab.OtherDoc;
+        _activeOtherDoc = doc;
+        if (CampaignState.Current is not null)
+        {
+            _activeOtherHtml = await Renderer.RenderToHtmlAsync(doc, CampaignState.Current);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateLogboekAsync()
+    {
+        if (_entity is null || _isCreatingLogboek) return;
+
+        _isCreatingLogboek = true;
+        try
+        {
+            var logboekPath = $"{_entity.RelativeFolderPath}/logboek.md";
+            var content = $"# Logboek — {_entity.Title}\n\nSessie-overzicht van gebeurtenissen, keuzes, relaties en openstaande threads rondom {_entity.Title}.\n\n### Sessie \n- \n";
+            await CampaignState.WriteDocumentAsync(logboekPath, content);
+            await CampaignState.RefreshAsync();
+            await LoadDocumentAsync();
+            _activeTab = EntityTab.Logboek;
+        }
+        finally
+        {
+            _isCreatingLogboek = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CopyImagePromptAsync()
+    {
+        if (_imagePromptDocument is null) return;
+        var content = await CampaignState.ReadDocumentAsync(_imagePromptDocument.RelativePath);
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", content);
+            _hasCopiedPrompt = true;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(2500);
+            _hasCopiedPrompt = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OpenLightbox(string url, string title, string category)
+    {
+        _lightboxImage = new LightboxItem(url, title, category);
+    }
+
+    private void CloseLightbox()
+    {
+        _lightboxImage = null;
+    }
+
+    private static string GetEntityBadge(CampaignEntityType type) => type switch
+    {
+        CampaignEntityType.Npc => "👤 NPC",
+        CampaignEntityType.Pc => "🛡️ Personage (PC)",
+        CampaignEntityType.Location => "📍 Locatie",
+        CampaignEntityType.Lore => "📜 Lore",
+        CampaignEntityType.Item => "💎 Item",
+        CampaignEntityType.Handout => "📋 Handout",
+        _ => "📄 Entiteit"
+    };
+
+    private static string GetEntityIcon(CampaignEntityType type) => type switch
+    {
+        CampaignEntityType.Npc => "👤",
+        CampaignEntityType.Pc => "🛡️",
+        CampaignEntityType.Location => "📍",
+        CampaignEntityType.Lore => "📜",
+        CampaignEntityType.Item => "💎",
+        CampaignEntityType.Handout => "📋",
+        _ => "📄"
+    };
+
+    private static string Humanize(string text) =>
+        System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(text.Replace('-', ' ').Replace('_', ' '));
 
     private static bool ContainsImageReference(string html, string relativePath)
     {

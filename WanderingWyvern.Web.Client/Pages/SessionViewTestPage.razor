@@ -6,32 +6,44 @@
 
 @if (_initialized)
 {
-    <DhrMaes.WanderingWyvern.Web.Client.Pages.SessionView Slug="sessie-1" />
+    <DhrMaes.WanderingWyvern.Web.Client.Pages.SessionView Slug="@Slug" />
 }
 
 @code {
+    [Parameter]
+    public string Slug { get; set; } = "session-01-the-beginning";
+
+    [Parameter]
+    public string? OutlineContent { get; set; }
+
+    [Parameter]
+    public string? ScriptContent { get; set; }
+
+    [Parameter]
+    public string? LiveNotesContent { get; set; }
+
     private bool _initialized;
 
     protected override void OnInitialized()
     {
         var outlineDoc = new CampaignDocument
         {
-            RelativePath = "Sessions/sessie-1/outline.md",
+            RelativePath = $"Sessions/{Slug}/outline.md",
             Title = "Outline (regie)",
             FileName = "outline"
         };
         var scriptDoc = new CampaignDocument
         {
-            RelativePath = "Sessions/sessie-1/script.md",
+            RelativePath = $"Sessions/{Slug}/script.md",
             Title = "Voorleesscript",
             FileName = "script"
         };
         var sessionEntity = new CampaignEntity
         {
             Type = CampaignEntityType.Session,
-            Slug = "sessie-1",
-            Title = "Sessie 1: De Verloren Karavaan",
-            RelativeFolderPath = "Sessions/sessie-1",
+            Slug = Slug,
+            Title = "Sessie 1 — The beginning",
+            RelativeFolderPath = $"Sessions/{Slug}",
             Documents = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase)
             {
                 ["outline"] = outlineDoc,
@@ -50,12 +62,19 @@
             Handouts = [],
             DocumentsByPath = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Sessions/sessie-1/outline.md"] = outlineDoc,
-                ["Sessions/sessie-1/script.md"] = scriptDoc
+                [$"Sessions/{Slug}/outline.md"] = outlineDoc,
+                [$"Sessions/{Slug}/script.md"] = scriptDoc
             }
         };
 
-        CampaignState.SetCurrentForTesting(index);
+        var docs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [$"Sessions/{Slug}/outline.md"] = OutlineContent ?? "# Outline",
+            [$"Sessions/{Slug}/script.md"] = ScriptContent ?? "# Script",
+            [$"Sessions/{Slug}/live-notes.md"] = LiveNotesContent ?? "# Live Notes"
+        };
+
+        CampaignState.SetCurrentForTesting(index, docs);
         _initialized = true;
     }
 }

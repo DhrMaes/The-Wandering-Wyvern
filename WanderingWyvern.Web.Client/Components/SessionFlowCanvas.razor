@@ -1,0 +1,1249 @@
+@using DhrMaes.WanderingWyvern.Core.Models
+@using System.Globalization
+@using System.Text
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject CampaignClientState CampaignState
+
+<div class="session-flow-container @(_isEditMode ? "is-edit-mode" : "is-play-mode")"
+     tabindex="0"
+     @onkeydown="HandleKeyDown"
+     @onmousemove="HandleMouseMove"
+     @onmouseup="HandleMouseUp"
+     @onmouseleave="HandleMouseUp">
+
+    <div class="canvas-toolbar">
+        <div class="canvas-mode-toggle" role="group" aria-label="Canvas Modus">
+            <button type="button"
+                    class="canvas-toolbar-btn @(!_isEditMode ? "is-active" : "")"
+                    @onclick="() => SetEditMode(false)">
+                ▶ Speelmodus
+            </button>
+            <button type="button"
+                    class="canvas-toolbar-btn @(_isEditMode ? "is-active" : "")"
+                    @onclick="() => SetEditMode(true)">
+                ✏️ Bewerkmodus
+            </button>
+        </div>
+
+        @if (_isEditMode)
+        {
+            <div class="canvas-edit-actions">
+                <button type="button" class="canvas-toolbar-btn primary" @onclick="AddNewNode">
+                    + Scène
+                </button>
+                <button type="button" class="canvas-toolbar-btn" @onclick="AutoLayout" title="Lijn alle nodes netjes uit">
+                    ☍ Auto-layout
+                </button>
+                <button type="button" class="canvas-toolbar-btn save-btn" @onclick="SaveAsync">
+                    💾 Opslaan
+                </button>
+            </div>
+
+            <div class="canvas-toolbox-strip">
+                <span class="toolbox-label">Bouwblokken:</span>
+                <button type="button" class="toolbox-badge combat" @onclick="@(() => AddArchetypeNode("combat"))" title="Voeg gevecht-scène toe">⚔️ Gevecht</button>
+                <button type="button" class="toolbox-badge social" @onclick="@(() => AddArchetypeNode("social"))" title="Voeg gesprek/NPC-scène toe">🗣️ Gesprek</button>
+                <button type="button" class="toolbox-badge explore" @onclick="@(() => AddArchetypeNode("explore"))" title="Voeg verkenning-scène toe">🔍 Verkenning</button>
+                <button type="button" class="toolbox-badge puzzle" @onclick="@(() => AddArchetypeNode("puzzle"))" title="Voeg puzzel/valstrik toe">🧩 Puzzel</button>
+                <button type="button" class="toolbox-badge fork" @onclick="@(() => AddArchetypeNode("fork"))" title="Voeg keuzepunt toe">🚪 Keuzepunt</button>
+                <button type="button" class="toolbox-badge rest" @onclick="@(() => AddArchetypeNode("rest"))" title="Voeg rust/einde toe">🏕️ Rust</button>
+            </div>
+        }
+        else
+        {
+            <div class="canvas-play-status">
+                <span class="canvas-status-hint">💡 Klik op een keuze of scène om die route te kiezen en te loggen. Scrollen = pannen, Ctrl+scrollen = zoomen.</span>
+            </div>
+        }
+
+        <div class="canvas-zoom-controls">
+            <button type="button" class="canvas-zoom-btn" @onclick="ZoomIn" title="Inzoomen">+</button>
+            <span class="zoom-level">@((int)(_zoom * 100))%</span>
+            <button type="button" class="canvas-zoom-btn" @onclick="ZoomOut" title="Uitzoomen">−</button>
+            <button type="button" class="canvas-zoom-btn" @onclick="ResetPanZoom" title="Reset weergave">⤢</button>
+        </div>
+    </div>
+
+    @if (Graph is not null)
+    {
+        var activeNodeId = ChosenPath.LastOrDefault() ?? Graph.Nodes.FirstOrDefault()?.Id;
+        var chosenSet = new HashSet<string>(ChosenPath, StringComparer.OrdinalIgnoreCase);
+        var unchosenSet = Graph.GetUnchosenBranchNodeIds(ChosenPath);
+
+        <div @ref="_viewportRef"
+             class="canvas-viewport"
+             @onmousedown="HandleViewportMouseDown">
+
+            <svg class="canvas-svg"
+                 width="100%"
+                 height="100%">
+                <defs>
+                    <marker id="flow-arrow"
+                            viewBox="0 0 10 10"
+                            refX="9"
+                            refY="5"
+                            markerWidth="6"
+                            markerHeight="6"
+                            orient="auto-start-reverse">
+                        <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--color-accent, #c99a45)" />
+                    </marker>
+                    <marker id="flow-arrow-active"
+                            viewBox="0 0 10 10"
+                            refX="9"
+                            refY="5"
+                            markerWidth="7"
+                            markerHeight="7"
+                            orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#f5c242" />
+                    </marker>
+                    <marker id="flow-arrow-dim"
+                            viewBox="0 0 10 10"
+                            refX="9"
+                            refY="5"
+                            markerWidth="5"
+                            markerHeight="5"
+                            orient="auto-start-reverse">
+                        <path d="M 0 1 L 10 5 L 0 9 z" fill="#665d50" />
+                    </marker>
+                </defs>
+
+                <g transform="translate(@(_panX.ToString(CultureInfo.InvariantCulture)), @(_panY.ToString(CultureInfo.InvariantCulture))) scale(@(_zoom.ToString(CultureInfo.InvariantCulture)))">
+                    <!-- Edges -->
+                    @foreach (var edge in Graph.Edges)
+                    {
+                        var source = Graph.FindNode(edge.SourceNodeId);
+                        var target = Graph.FindNode(edge.TargetNodeId);
+                        if (source is null || target is null) continue;
+
+                        var isSourceActive = string.Equals(source.Id, activeNodeId, StringComparison.OrdinalIgnoreCase);
+                        var isTargetChosen = chosenSet.Contains(target.Id);
+                        var isEdgeChosen = chosenSet.Contains(source.Id) && isTargetChosen;
+                        var isEdgeUnchosen = unchosenSet.Contains(target.Id);
+
+                        var x1 = source.X + (NodeWidth / 2);
+                        var y1 = source.Y + NodeHeight;
+                        var x2 = target.X + (NodeWidth / 2);
+                        var y2 = target.Y;
+
+                        var cy = (y1 + y2) / 2;
+                        var pathD = $"M {x1.ToString(CultureInfo.InvariantCulture)} {y1.ToString(CultureInfo.InvariantCulture)} C {x1.ToString(CultureInfo.InvariantCulture)} {cy.ToString(CultureInfo.InvariantCulture)}, {x2.ToString(CultureInfo.InvariantCulture)} {cy.ToString(CultureInfo.InvariantCulture)}, {x2.ToString(CultureInfo.InvariantCulture)} {y2.ToString(CultureInfo.InvariantCulture)}";
+
+                        var edgeClass = isEdgeChosen ? "is-chosen" : (isEdgeUnchosen ? "is-unchosen" : (isSourceActive ? "is-available" : ""));
+                        var markerId = isEdgeChosen ? "flow-arrow-active" : (isEdgeUnchosen ? "flow-arrow-dim" : "flow-arrow");
+
+                        <path d="@pathD"
+                              class="canvas-edge @edgeClass"
+                              marker-end="url(#@markerId)" />
+
+                        <!-- Choice Label Pill -->
+                        @if (!string.IsNullOrWhiteSpace(edge.Label))
+                        {
+                            var midX = (x1 + x2) / 2;
+                            var midY = (y1 + y2) / 2;
+
+                            <g class="canvas-edge-label-group @edgeClass"
+                               transform="translate(@midX.ToString(CultureInfo.InvariantCulture), @midY.ToString(CultureInfo.InvariantCulture))"
+                               @onclick="() => HandleEdgeClick(edge)"
+                               @onclick:stopPropagation>
+                                <rect x="-60" y="-13" width="120" height="26" rx="13" class="canvas-edge-label-bg" />
+                                <text x="0" y="4.5" text-anchor="middle" class="canvas-edge-label-text">
+                                    @Truncate(edge.Label, 18)
+                                </text>
+                            </g>
+                        }
+                    }
+
+                    <!-- Dragging connection draft line -->
+                    @if (_isDraggingConnection && _connectingSourceNode is not null)
+                    {
+                        var sx = _connectionStartX;
+                        var sy = _connectionStartY;
+                        var tx = _connectionCurrentX;
+                        var ty = _connectionCurrentY;
+                        var scy = (sy + ty) / 2;
+                        var draftD = $"M {sx.ToString(CultureInfo.InvariantCulture)} {sy.ToString(CultureInfo.InvariantCulture)} C {sx.ToString(CultureInfo.InvariantCulture)} {scy.ToString(CultureInfo.InvariantCulture)}, {tx.ToString(CultureInfo.InvariantCulture)} {scy.ToString(CultureInfo.InvariantCulture)}, {tx.ToString(CultureInfo.InvariantCulture)} {ty.ToString(CultureInfo.InvariantCulture)}";
+
+                        <path d="@draftD"
+                              class="canvas-edge canvas-edge-draft"
+                              marker-end="url(#flow-arrow-active)" />
+                    }
+
+                    <!-- Nodes -->
+                    @foreach (var node in Graph.Nodes)
+                    {
+                        var isActive = string.Equals(node.Id, activeNodeId, StringComparison.OrdinalIgnoreCase);
+                        var isVisited = chosenSet.Contains(node.Id);
+                        var isUnchosen = unchosenSet.Contains(node.Id);
+                        var archetypeClass = node.GetArchetypeColorClass();
+
+                        var isSelected = _isEditMode && _selectedNode?.Id == node.Id;
+                        var nodeClasses = $"canvas-node {archetypeClass}";
+                        if (isSelected) nodeClasses += " is-selected";
+                        if (isActive) nodeClasses += " is-active";
+                        else if (isVisited) nodeClasses += " is-visited";
+                        else if (isUnchosen) nodeClasses += " is-unchosen";
+                        if (_isDraggingConnection && _connectingSourceNode?.Id != node.Id) nodeClasses += " is-connect-target";
+
+                        <g class="@nodeClasses"
+                           transform="translate(@node.X.ToString(CultureInfo.InvariantCulture), @node.Y.ToString(CultureInfo.InvariantCulture))"
+                           @onmousedown="(e) => HandleNodeMouseDown(node, e)"
+                           @onmousedown:stopPropagation
+                           @onmouseup="() => HandleNodeMouseUp(node)"
+                           @onclick="() => HandleNodeClick(node)"
+                           @onclick:stopPropagation>
+
+                            <!-- Node Background Card -->
+                            <rect width="@NodeWidth"
+                                  height="@NodeHeight"
+                                  rx="8"
+                                  class="canvas-node-card" />
+
+                            <!-- Header / Title -->
+                            <rect width="@NodeWidth"
+                                  height="32"
+                                  rx="8"
+                                  class="canvas-node-header @archetypeClass" />
+
+                            <text x="12" y="21" class="canvas-node-id">@node.Id</text>
+                            <text x="36" y="21" class="canvas-node-icon">@node.GetArchetypeIcon()</text>
+                            <text x="56" y="21" class="canvas-node-title">@Truncate(CleanTitle(node), 16)</text>
+
+                            <!-- Status Badge -->
+                            @if (isActive)
+                            {
+                                @((MarkupString)$"<text x=\"{(NodeWidth - 10).ToString(CultureInfo.InvariantCulture)}\" y=\"21\" text-anchor=\"end\" class=\"canvas-node-badge is-active\">★ Actief</text>")
+                            }
+                            else if (isVisited)
+                            {
+                                @((MarkupString)$"<text x=\"{(NodeWidth - 10).ToString(CultureInfo.InvariantCulture)}\" y=\"21\" text-anchor=\"end\" class=\"canvas-node-badge is-visited\">✓ Bezocht</text>")
+                            }
+                            else if (isUnchosen)
+                            {
+                                @((MarkupString)$"<text x=\"{(NodeWidth - 10).ToString(CultureInfo.InvariantCulture)}\" y=\"21\" text-anchor=\"end\" class=\"canvas-node-badge is-unchosen\">◷ Niet gekozen</text>")
+                            }
+
+                            <!-- Snippet Body & Chips -->
+                            <foreignObject x="8" y="38" width="@(NodeWidth - 16)" height="@(NodeHeight - 44)">
+                                <div xmlns="http://www.w3.org/1999/xhtml" class="canvas-node-preview">
+                                    <div class="node-preview-text">
+                                        @(string.IsNullOrWhiteSpace(node.Content) ? "Geen tekst ingevuld." : Truncate(node.Content, 70))
+                                    </div>
+                                    @if (node.LinkedEntities.Count > 0)
+                                    {
+                                        <div class="canvas-node-chips">
+                                            @foreach (var ent in node.LinkedEntities.Take(2))
+                                            {
+                                                <span class="canvas-chip" title="@ent">🏷️ @System.IO.Path.GetFileNameWithoutExtension(ent)</span>
+                                            }
+                                            @if (node.LinkedEntities.Count > 2)
+                                            {
+                                                <span class="canvas-chip more">+@(node.LinkedEntities.Count - 2)</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </foreignObject>
+
+                            <!-- Connector handles in edit mode -->
+                            @if (_isEditMode)
+                            {
+                                <!-- Input Handle (top) -->
+                                <circle cx="@(NodeWidth / 2)" cy="0" r="7" class="canvas-handle handle-in"
+                                        @onmouseup="() => HandleNodeMouseUp(node)"
+                                        @onmouseup:stopPropagation
+                                        title="Koppel hieraan" />
+
+                                <!-- Output Handle (bottom) — Click and drag to connect! -->
+                                <circle cx="@(NodeWidth / 2)" cy="@NodeHeight" r="8"
+                                        class="canvas-handle handle-out @(_isDraggingConnection && _connectingSourceNode?.Id == node.Id ? "is-connecting" : "")"
+                                        @onmousedown="(e) => StartConnectionDrag(node, e)"
+                                        @onmousedown:stopPropagation
+                                        title="Klik en sleep om deze scène te verbinden met een andere scène" />
+
+                                <!-- Edit & Delete buttons on node -->
+                                <g class="node-edit-actions" transform="translate(@(NodeWidth - 52), 6)">
+                                    <rect width="20" height="20" rx="3" class="node-action-btn edit-btn"
+                                          @onclick="() => OpenNodeEditor(node)"
+                                          @onclick:stopPropagation />
+                                    <text x="10" y="14" text-anchor="middle" class="node-action-icon"
+                                          @onclick="() => OpenNodeEditor(node)"
+                                          @onclick:stopPropagation>✎</text>
+
+                                    <rect x="24" width="20" height="20" rx="3" class="node-action-btn delete-btn"
+                                          @onclick="() => PromptDeleteNode(node)"
+                                          @onclick:stopPropagation />
+                                    <text x="34" y="14" text-anchor="middle" class="node-action-icon"
+                                          @onclick="() => PromptDeleteNode(node)"
+                                          @onclick:stopPropagation>×</text>
+                                </g>
+
+                                <!-- Quick-Sprout Action Buttons under selected node -->
+                                @if (isSelected)
+                                {
+                                    <g class="quick-sprout-actions" transform="translate(0, @(NodeHeight + 14))">
+                                        <!-- + Volgende Stap -->
+                                        <g class="quick-sprout-btn"
+                                           @onclick="() => QuickAddNextNode(node)"
+                                           @onclick:stopPropagation>
+                                            <rect width="105" height="26" rx="13" class="sprout-bg" />
+                                            <text x="52" y="17" text-anchor="middle" class="sprout-text">➕ Volgende</text>
+                                        </g>
+
+                                        <!-- 🔀 Vertakking -->
+                                        <g class="quick-sprout-btn"
+                                           transform="translate(112, 0)"
+                                           @onclick="() => QuickAddForkNodes(node)"
+                                           @onclick:stopPropagation>
+                                            <rect width="105" height="26" rx="13" class="sprout-bg sprout-fork" />
+                                            <text x="52" y="17" text-anchor="middle" class="sprout-text">🔀 Vertakking</text>
+                                        </g>
+                                    </g>
+                                }
+                            }
+                        </g>
+                    }
+                </g>
+            </svg>
+        </div>
+    }
+
+    <!-- Hybrid Scene Editor (in Edit Mode) -->
+    @if (_editingNode is not null)
+    {
+        var incomingEdge = _editingEdge?.TargetNodeId == _editingNode.Id ? _editingEdge : Graph?.GetIncomingEdges(_editingNode.Id).FirstOrDefault();
+        var sourceNode = incomingEdge is not null ? Graph?.FindNode(incomingEdge.SourceNodeId) : null;
+
+        <div class="canvas-modal-backdrop"
+             @onclick="CancelNodeEditor"
+             @onmousedown:stopPropagation
+             @onmouseup:stopPropagation>
+            <div class="canvas-modal-card hybrid-editor-modal" @onclick:stopPropagation>
+                <div class="canvas-modal-header">
+                    <div class="modal-header-title">
+                        <span class="editor-archetype-icon">@_editingNode.GetArchetypeIcon()</span>
+                        <h3>Scène instellen (@_editingNode.Id)</h3>
+                    </div>
+                    <div class="editor-tabs" role="tablist">
+                        <button type="button" class="editor-tab-btn @(_editorTab == "form" ? "is-active" : "")"
+                                @onclick="@(() => SwitchEditorTab("form"))">
+                            📋 Eenvoudig Formulier
+                        </button>
+                        <button type="button" class="editor-tab-btn @(_editorTab == "markdown" ? "is-active" : "")"
+                                @onclick="@(() => SwitchEditorTab("markdown"))">
+                            ✏️ Markdown Code
+                        </button>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CancelNodeEditor">×</button>
+                </div>
+
+                <div class="canvas-modal-body">
+                    @if (_editorTab == "form")
+                    {
+                        <div class="editor-form-row">
+                            <div class="form-group flex-1">
+                                <label>Scènetype</label>
+                                <select class="modal-select" @bind="_editingNodeType" @bind:after="OnEditorTypeChanged">
+                                    <option value="standard">📖 Standaard Scène</option>
+                                    <option value="combat">⚔️ Gevecht (Combat Encounter)</option>
+                                    <option value="social">🗣️ Gesprek (Social / NPC)</option>
+                                    <option value="explore">🔍 Verkenning (Investigation / Discovery)</option>
+                                    <option value="puzzle">🧩 Puzzel / Valstrik (Puzzle / Trap)</option>
+                                    <option value="fork">🚪 Keuzepunt (Fork in the Road)</option>
+                                    <option value="rest">🏕️ Rust / Einde (Camp / Epilogue)</option>
+                                </select>
+                            </div>
+                            <div class="form-group flex-2">
+                                <label>Titel van de scène</label>
+                                <input type="text" class="modal-input" @bind="_editingNode.Title" placeholder="Bv. Het Vergeten Moeras" />
+                            </div>
+                        </div>
+
+                        @if (incomingEdge is not null)
+                        {
+                            <div class="form-group">
+                                <label>Keuzetekst vanaf <strong>@(sourceNode?.Title ?? incomingEdge.SourceNodeId)</strong></label>
+                                <input type="text" class="modal-input" @bind="incomingEdge.Label" placeholder="Bv. Pad links, De rivier oversteken..." />
+                            </div>
+                        }
+
+                        <div class="form-group">
+                            <label>Wat zien en horen de spelers? <em>(Voorleestekst)</em></label>
+                            <textarea class="modal-textarea" rows="4" @bind="_editorReadAloud" placeholder="De mist trekt op en voor jullie opent zich een groot dal..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Wat kunnen de spelers doen / rollen? <em>(Checks & Acties)</em></label>
+                            <textarea class="modal-textarea" rows="4" @bind="_editorChecks" placeholder="- DC 12 Perception: Ze merken de voetsporen op...&#10;- DC 15 Stealth: Ze sluipen ongezien voorbij..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gekoppelde Campagne Entiteiten (NPCs & Locaties)</label>
+                            @if (CampaignState.Current is not null)
+                            {
+                                <div class="entity-autocomplete-bar">
+                                    <select class="modal-select" @onchange="HandleEntityAddFromDropdown">
+                                        <option value="">+ Koppel NPC of Locatie...</option>
+                                        <optgroup label="NPCs">
+                                            @foreach (var npc in CampaignState.Current.Npcs)
+                                            {
+                                                var path = npc.PrimaryDocument?.RelativePath ?? $"{npc.RelativeFolderPath}/{npc.Slug}.md";
+                                                <option value="@path">👤 @npc.Title</option>
+                                            }
+                                        </optgroup>
+                                        <optgroup label="Locaties">
+                                            @foreach (var loc in CampaignState.Current.Locations)
+                                            {
+                                                var path = loc.PrimaryDocument?.RelativePath ?? $"{loc.RelativeFolderPath}/{loc.Slug}.md";
+                                                <option value="@path">📍 @loc.Title</option>
+                                            }
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            }
+
+                            @if (_editingNode.LinkedEntities.Count > 0)
+                            {
+                                <div class="selected-entity-chips">
+                                    @foreach (var ent in _editingNode.LinkedEntities)
+                                    {
+                                        <span class="entity-chip-item">
+                                            🏷️ @System.IO.Path.GetFileNameWithoutExtension(ent)
+                                            <button type="button" class="chip-remove-btn" @onclick="() => RemoveLinkedEntity(ent)">×</button>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Markdown Tab -->
+                        <div class="markdown-quick-helpers">
+                            <button type="button" class="quick-helper-btn" @onclick="InsertReadAloudHelper">+ Voorleestekst</button>
+                            <button type="button" class="quick-helper-btn" @onclick="InsertDcCheckHelper">+ DC Check</button>
+                        </div>
+
+                        <label>Voorleestekst & regie-aantekeningen (Markdown)</label>
+                        <textarea class="modal-textarea code-font" rows="11" @bind="_editingNode.Content" placeholder="> Voorleestekst hier...&#10;&#10;DC 12 check..."></textarea>
+                    }
+                </div>
+
+                <div class="canvas-modal-footer">
+                    <button type="button" class="canvas-toolbar-btn" @onclick="CancelNodeEditor">Annuleren</button>
+                    <button type="button" class="canvas-toolbar-btn primary" @onclick="ConfirmNodeEditor">Klaar</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal Edge / Choice Editor -->
+    @if (_editingEdge is not null && _editingNode is null)
+    {
+        var source = Graph?.FindNode(_editingEdge.SourceNodeId);
+        var target = Graph?.FindNode(_editingEdge.TargetNodeId);
+
+        <div class="canvas-modal-backdrop"
+             @onclick="CancelEdgeEditor"
+             @onmousedown:stopPropagation
+             @onmouseup:stopPropagation>
+            <div class="canvas-modal-card edge-modal" @onclick:stopPropagation>
+                <div class="canvas-modal-header">
+                    <h3>Keuzelabel bewerken</h3>
+                    <button type="button" class="modal-close-btn" @onclick="CancelEdgeEditor">×</button>
+                </div>
+                <div class="canvas-modal-body">
+                    <p class="edge-modal-hint">
+                        Verbinding van <strong>@(source?.Title ?? _editingEdge.SourceNodeId)</strong> naar <strong>@(target?.Title ?? _editingEdge.TargetNodeId)</strong>
+                    </p>
+                    <label>Keuzetekst voor de spelers (bv. "Pad links", "Rivier oversteken")</label>
+                    <input type="text" class="modal-input" @bind="_editingEdge.Label" placeholder="Pad links" autofocus />
+                </div>
+                <div class="canvas-modal-footer">
+                    <button type="button" class="canvas-toolbar-btn delete-btn" @onclick="DeleteEditingEdge">Verwijder verbinding</button>
+                    <button type="button" class="canvas-toolbar-btn" @onclick="CancelEdgeEditor">Annuleren</button>
+                    <button type="button" class="canvas-toolbar-btn primary" @onclick="ConfirmEdgeEditor">Opslaan</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal Delete Confirmation (in Edit Mode) -->
+    @if (_nodeToDelete is not null)
+    {
+        var incidentEdgesCount = Graph?.Edges.Count(e => e.SourceNodeId == _nodeToDelete.Id || e.TargetNodeId == _nodeToDelete.Id) ?? 0;
+
+        <div class="canvas-modal-backdrop"
+             @onclick="CancelDeleteNode"
+             @onmousedown:stopPropagation
+             @onmouseup:stopPropagation>
+            <div class="canvas-modal-card delete-modal" @onclick:stopPropagation>
+                <div class="canvas-modal-header">
+                    <h3>Scène verwijderen?</h3>
+                    <button type="button" class="modal-close-btn" @onclick="CancelDeleteNode">×</button>
+                </div>
+                <div class="canvas-modal-body">
+                    <p>Weet je zeker dat je scène <strong>@_nodeToDelete.Title</strong> (@_nodeToDelete.Id) wilt verwijderen?</p>
+                    @if (incidentEdgesCount > 0)
+                    {
+                        <p class="edge-modal-hint delete-warning">
+                            ⚠️ Er @(incidentEdgesCount == 1 ? "wordt ook 1 gekoppelde verbinding" : $"worden ook {incidentEdgesCount} gekoppelde verbindingen") verwijderd.
+                        </p>
+                    }
+                </div>
+                <div class="canvas-modal-footer">
+                    <button type="button" class="canvas-toolbar-btn" @onclick="CancelDeleteNode">Annuleren</button>
+                    <button type="button" class="canvas-toolbar-btn delete-btn" @onclick="ConfirmDeleteNode">Verwijderen</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public SessionFlowGraph? Graph { get; set; }
+
+    [Parameter]
+    public List<string> ChosenPath { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<SessionFlowEdge> OnChoiceSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnNavigateToScene { get; set; }
+
+    [Parameter]
+    public EventCallback<SessionFlowGraph> OnSaveGraph { get; set; }
+
+    private const double NodeWidth = 220;
+    private const double NodeHeight = 110;
+
+    private bool _isEditMode;
+    private double _panX = 60;
+    private double _panY = 60;
+    private double _zoom = 1.0;
+
+    private bool _isPanning;
+    private double _startMouseX;
+    private double _startMouseY;
+    private double _startPanX;
+    private double _startPanY;
+
+    private SessionFlowNode? _draggedNode;
+    private double _nodeDragOffsetX;
+    private double _nodeDragOffsetY;
+
+    // Drag-to-connect state
+    private bool _isDraggingConnection;
+    private SessionFlowNode? _connectingSourceNode;
+    private double _startConnectionMouseX;
+    private double _startConnectionMouseY;
+    private double _connectionStartX;
+    private double _connectionStartY;
+    private double _connectionCurrentX;
+    private double _connectionCurrentY;
+
+    private SessionFlowNode? _editingNode;
+    private SessionFlowEdge? _editingEdge;
+    private SessionFlowNode? _pendingDragNode;
+    private SessionFlowEdge? _pendingDragEdge;
+    private SessionFlowNode? _selectedNode;
+    private SessionFlowNode? _nodeToDelete;
+
+    // Hybrid Editor State
+    private string _editorTab = "form";
+    private string _editingNodeType = "standard";
+    private string _editorReadAloud = string.Empty;
+    private string _editorChecks = string.Empty;
+
+    private ElementReference _viewportRef;
+    private DotNetObjectReference<SessionFlowCanvas>? _dotNetRef;
+    private IJSObjectReference? _wheelHandler;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                _wheelHandler = await JS.InvokeAsync<IJSObjectReference>("wanderingWyvern.attachCanvasWheel", _viewportRef, _dotNetRef);
+            }
+            catch
+            {
+                // In test or non-JS environments
+            }
+        }
+    }
+
+    private void SetEditMode(bool edit)
+    {
+        _isEditMode = edit;
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+        _selectedNode = null;
+        _nodeToDelete = null;
+    }
+
+    private void ZoomIn() => ZoomAt(0.15, 450, 300);
+    private void ZoomOut() => ZoomAt(-0.15, 450, 300);
+
+    private void ZoomAt(double delta, double pivotX, double pivotY)
+    {
+        var oldZoom = _zoom;
+        var newZoom = Math.Clamp(_zoom + delta, 0.35, 2.5);
+        _panX = pivotX - ((pivotX - _panX) / oldZoom) * newZoom;
+        _panY = pivotY - ((pivotY - _panY) / oldZoom) * newZoom;
+        _zoom = newZoom;
+    }
+
+    private void ResetPanZoom()
+    {
+        _panX = 60;
+        _panY = 60;
+        _zoom = 1.0;
+    }
+
+    [JSInvokable]
+    public void HandleCanvasWheel(double deltaY, double deltaX, bool isCtrl, bool isShift, double mouseX, double mouseY)
+    {
+        if (isCtrl)
+        {
+            var oldZoom = _zoom;
+            var zoomDelta = deltaY < 0 ? 0.12 : -0.12;
+            var newZoom = Math.Clamp(_zoom + zoomDelta, 0.35, 2.5);
+
+            // Zoom centered directly around the mouse cursor position!
+            _panX = mouseX - ((mouseX - _panX) / oldZoom) * newZoom;
+            _panY = mouseY - ((mouseY - _panY) / oldZoom) * newZoom;
+            _zoom = newZoom;
+        }
+        else
+        {
+            if (isShift)
+            {
+                _panX -= deltaY;
+            }
+            else
+            {
+                _panY -= deltaY;
+                _panX -= deltaX;
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void HandleViewportMouseDown(MouseEventArgs e)
+    {
+        if (e.Button == 0) // Left click on background pans and deselects
+        {
+            _selectedNode = null;
+            _isPanning = true;
+            _startMouseX = e.ClientX;
+            _startMouseY = e.ClientY;
+            _startPanX = _panX;
+            _startPanY = _panY;
+        }
+    }
+
+    private void HandleNodeMouseDown(SessionFlowNode node, MouseEventArgs e)
+    {
+        if (_isEditMode && e.Button == 0 && !_isDraggingConnection && _editingNode is null && _editingEdge is null)
+        {
+            _draggedNode = node;
+            _startMouseX = e.ClientX;
+            _startMouseY = e.ClientY;
+            _nodeDragOffsetX = node.X;
+            _nodeDragOffsetY = node.Y;
+        }
+    }
+
+    private void StartConnectionDrag(SessionFlowNode node, MouseEventArgs e)
+    {
+        if (!_isEditMode || e.Button != 0 || _editingNode is not null || _editingEdge is not null) return;
+
+        _isDraggingConnection = true;
+        _connectingSourceNode = node;
+        _startConnectionMouseX = e.ClientX;
+        _startConnectionMouseY = e.ClientY;
+        _connectionStartX = node.X + (NodeWidth / 2);
+        _connectionStartY = node.Y + NodeHeight;
+        _connectionCurrentX = _connectionStartX;
+        _connectionCurrentY = _connectionStartY;
+    }
+
+    private void HandleMouseMove(MouseEventArgs e)
+    {
+        if (_isDraggingConnection)
+        {
+            var deltaX = (e.ClientX - _startConnectionMouseX) / _zoom;
+            var deltaY = (e.ClientY - _startConnectionMouseY) / _zoom;
+            _connectionCurrentX = _connectionStartX + deltaX;
+            _connectionCurrentY = _connectionStartY + deltaY;
+        }
+        else if (_draggedNode is not null && _isEditMode)
+        {
+            var deltaX = (e.ClientX - _startMouseX) / _zoom;
+            var deltaY = (e.ClientY - _startMouseY) / _zoom;
+            _draggedNode.X = Math.Max(20, _nodeDragOffsetX + deltaX);
+            _draggedNode.Y = Math.Max(20, _nodeDragOffsetY + deltaY);
+        }
+        else if (_isPanning)
+        {
+            _panX = _startPanX + (e.ClientX - _startMouseX);
+            _panY = _startPanY + (e.ClientY - _startMouseY);
+        }
+    }
+
+    private void HandleNodeMouseUp(SessionFlowNode targetNode)
+    {
+        _draggedNode = null;
+        if (_isDraggingConnection && _connectingSourceNode is not null)
+        {
+            CompleteConnection(targetNode);
+        }
+    }
+
+    [JSInvokable]
+    public void HandleGlobalMouseUp()
+    {
+        if (_draggedNode is not null || _isPanning)
+        {
+            _draggedNode = null;
+            _isPanning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleMouseUp(MouseEventArgs e)
+    {
+        _draggedNode = null;
+        _isPanning = false;
+
+        if (_isDraggingConnection && _connectingSourceNode is not null && Graph is not null)
+        {
+            var distance = Math.Sqrt(Math.Pow(_connectionCurrentX - _connectionStartX, 2) + Math.Pow(_connectionCurrentY - _connectionStartY, 2));
+            if (distance >= 35)
+            {
+                // Dropped on empty canvas! Create a new scene node at this drop position
+                var dropX = Math.Max(20, _connectionCurrentX - (NodeWidth / 2));
+                var dropY = Math.Max(20, _connectionCurrentY - 15);
+
+                var nextIndex = Graph.Nodes.Count + 1;
+                var newId = $"S{nextIndex}";
+                var newNode = new SessionFlowNode
+                {
+                    Id = newId,
+                    Title = $"{nextIndex}. Nieuwe Scène",
+                    NodeType = "standard",
+                    Content = "> Voorleestekst hier...",
+                    X = dropX,
+                    Y = dropY
+                };
+                Graph.Nodes.Add(newNode);
+
+                var newEdge = new SessionFlowEdge
+                {
+                    SourceNodeId = _connectingSourceNode.Id,
+                    TargetNodeId = newNode.Id,
+                    Label = "Pad"
+                };
+                Graph.Edges.Add(newEdge);
+
+                _editingNode = newNode;
+                _editingEdge = newEdge;
+                _pendingDragNode = newNode;
+                _pendingDragEdge = newEdge;
+                OpenNodeEditor(newNode);
+            }
+        }
+
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+    }
+
+    private async Task HandleNodeClick(SessionFlowNode node)
+    {
+        if (_isEditMode)
+        {
+            _selectedNode = node;
+            return;
+        }
+
+        var activeId = ChosenPath.LastOrDefault() ?? Graph?.Nodes.FirstOrDefault()?.Id;
+        if (activeId is not null && Graph is not null)
+        {
+            var edge = Graph.GetOutgoingEdges(activeId).FirstOrDefault(e => e.TargetNodeId == node.Id);
+            if (edge is not null)
+            {
+                await OnChoiceSelected.InvokeAsync(edge);
+                return;
+            }
+        }
+
+        await OnNavigateToScene.InvokeAsync(node.Id);
+    }
+
+    private async Task HandleEdgeClick(SessionFlowEdge edge)
+    {
+        if (_isEditMode)
+        {
+            _editingEdge = edge;
+        }
+        else
+        {
+            await OnChoiceSelected.InvokeAsync(edge);
+        }
+    }
+
+    private void CompleteConnection(SessionFlowNode targetNode)
+    {
+        if (_connectingSourceNode is null || Graph is null)
+            return;
+
+        if (_connectingSourceNode.Id != targetNode.Id)
+        {
+            var existing = Graph.Edges.FirstOrDefault(e =>
+                e.SourceNodeId == _connectingSourceNode.Id && e.TargetNodeId == targetNode.Id);
+
+            if (existing is null)
+            {
+                var newEdge = new SessionFlowEdge
+                {
+                    SourceNodeId = _connectingSourceNode.Id,
+                    TargetNodeId = targetNode.Id,
+                    Label = "Pad"
+                };
+                Graph.Edges.Add(newEdge);
+                _pendingDragEdge = newEdge;
+                _editingEdge = newEdge;
+            }
+        }
+
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+    }
+
+    private void AddNewNode() => AddArchetypeNode("standard");
+
+    private void AddArchetypeNode(string archetype)
+    {
+        if (Graph is null) return;
+
+        var nextIndex = Graph.Nodes.Count + 1;
+        var newId = $"S{nextIndex}";
+        var dummy = new SessionFlowNode { Id = newId, NodeType = archetype };
+        var icon = dummy.GetArchetypeIcon();
+        var label = dummy.GetArchetypeLabel();
+
+        var lastNode = Graph.Nodes.LastOrDefault();
+        var newX = lastNode is not null ? lastNode.X : 100;
+        var newY = lastNode is not null ? lastNode.Y + 160 : 100;
+
+        var defaultContent = archetype switch
+        {
+            "combat" => "> De vijanden verschijnen met getrokken wapens!\n\n*Combat Encounter:*\n- 3x Bandits / Monsters.\n- Beloning: 20 gp en sleutel.",
+            "social" => "> Een interessante figuur spreekt jullie aan...\n\n*Social Encounter:*\n- Persuasion DC 12 om extra hulp te krijgen.\n- Inzicht DC 13 om hun ware motief te achterhalen.",
+            "puzzle" => "> Een mysterieuze kamer met een vreemd mechanisme...\n\n*Puzzel / Valstrik:*\n- Investigation DC 14 om het patroon te ontcijferen.\n- Thieves' tools DC 13 om het mechanisme te deactiveren.",
+            "explore" => "> Het landschap opent zich voor een nieuw uitzicht...\n\n*Verkenning:*\n- Survival DC 12 om sporen te volgen.\n- Perception DC 13 om verborgen details te ontdekken.",
+            "fork" => "> Het pad splitst zich hier in twee verschillende richtingen...\n\n*Keuzemoment:*\n- Pad links of pad rechts?",
+            "rest" => "> Een veilige plek om de tenten op te slaan en op adem te komen.\n\n*Rust & Beloning:*\n- Korte of lange rust mogelijk.\n- Recap van behaalde successen.",
+            _ => "> Beschrijf hier de scène voor de spelers..."
+        };
+
+        var newNode = new SessionFlowNode
+        {
+            Id = newId,
+            Title = $"{icon} {nextIndex}. {label}",
+            NodeType = archetype,
+            Content = defaultContent,
+            X = newX,
+            Y = newY
+        };
+
+        Graph.Nodes.Add(newNode);
+        _selectedNode = newNode;
+        OpenNodeEditor(newNode);
+    }
+
+    private void QuickAddNextNode(SessionFlowNode sourceNode)
+    {
+        if (Graph is null) return;
+        var nextIndex = Graph.Nodes.Count + 1;
+        var newId = $"S{nextIndex}";
+        var newNode = new SessionFlowNode
+        {
+            Id = newId,
+            Title = $"{nextIndex}. Volgende Scène",
+            NodeType = "standard",
+            Content = "> Beschrijf de volgende scène...",
+            X = sourceNode.X,
+            Y = sourceNode.Y + 160
+        };
+        Graph.Nodes.Add(newNode);
+
+        Graph.Edges.Add(new SessionFlowEdge
+        {
+            SourceNodeId = sourceNode.Id,
+            TargetNodeId = newNode.Id,
+            Label = "Volgende"
+        });
+
+        _selectedNode = newNode;
+    }
+
+    private void QuickAddForkNodes(SessionFlowNode sourceNode)
+    {
+        if (Graph is null) return;
+        var idxA = Graph.Nodes.Count + 1;
+        var idxB = Graph.Nodes.Count + 2;
+
+        var nodeA = new SessionFlowNode
+        {
+            Id = $"S{idxA}",
+            Title = $"🔍 {idxA}. Pad Links",
+            NodeType = "explore",
+            Content = "> Het linkerpad kronkelt door een diepe vallei...",
+            X = Math.Max(20, sourceNode.X - 140),
+            Y = sourceNode.Y + 160
+        };
+        var nodeB = new SessionFlowNode
+        {
+            Id = $"S{idxB}",
+            Title = $"🗣️ {idxB}. Pad Rechts",
+            NodeType = "social",
+            Content = "> Het rechterpad leidt naar een bewoond gehucht...",
+            X = sourceNode.X + 140,
+            Y = sourceNode.Y + 160
+        };
+
+        Graph.Nodes.Add(nodeA);
+        Graph.Nodes.Add(nodeB);
+
+        Graph.Edges.Add(new SessionFlowEdge
+        {
+            SourceNodeId = sourceNode.Id,
+            TargetNodeId = nodeA.Id,
+            Label = "Kies Pad Links"
+        });
+        Graph.Edges.Add(new SessionFlowEdge
+        {
+            SourceNodeId = sourceNode.Id,
+            TargetNodeId = nodeB.Id,
+            Label = "Kies Pad Rechts"
+        });
+
+        _selectedNode = nodeA;
+    }
+
+    private void PromptDeleteNode(SessionFlowNode node)
+    {
+        _nodeToDelete = node;
+    }
+
+    private void CancelDeleteNode()
+    {
+        _nodeToDelete = null;
+    }
+
+    private void ConfirmDeleteNode()
+    {
+        if (_nodeToDelete is not null && Graph is not null)
+        {
+            Graph.Nodes.Remove(_nodeToDelete);
+            Graph.Edges.RemoveAll(e => e.SourceNodeId == _nodeToDelete.Id || e.TargetNodeId == _nodeToDelete.Id);
+            if (_selectedNode?.Id == _nodeToDelete.Id)
+            {
+                _selectedNode = null;
+            }
+            _nodeToDelete = null;
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (_editingNode is not null || _editingEdge is not null)
+            return;
+
+        if (_nodeToDelete is not null)
+        {
+            if (e.Key == "Escape")
+            {
+                CancelDeleteNode();
+            }
+            else if (e.Key == "Enter")
+            {
+                ConfirmDeleteNode();
+            }
+            return;
+        }
+
+        if (!_isEditMode)
+            return;
+
+        if (_selectedNode is not null)
+        {
+            if (e.Key == "Delete" || e.Key == "Backspace")
+            {
+                PromptDeleteNode(_selectedNode);
+            }
+            else if (e.Key == "Escape")
+            {
+                _selectedNode = null;
+            }
+        }
+    }
+
+    private void OpenNodeEditor(SessionFlowNode node)
+    {
+        _pendingDragNode = null;
+        _pendingDragEdge = null;
+        _editingEdge = null;
+        _editingNode = node;
+        _editorTab = "form";
+        _editingNodeType = string.IsNullOrWhiteSpace(node.NodeType) ? "standard" : node.NodeType;
+
+        ParseContentForForm(node.Content);
+    }
+
+    private void ParseContentForForm(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            _editorReadAloud = string.Empty;
+            _editorChecks = string.Empty;
+            return;
+        }
+
+        var lines = content.Split('\n');
+        var readAloudLines = new List<string>();
+        var checkLines = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
+            if (trimmed.StartsWith('>'))
+            {
+                readAloudLines.Add(trimmed.TrimStart('>', ' '));
+            }
+            else if (!trimmed.StartsWith("**Gekoppelde entiteiten:**", StringComparison.OrdinalIgnoreCase))
+            {
+                checkLines.Add(rawLine);
+            }
+        }
+
+        _editorReadAloud = string.Join("\n", readAloudLines).Trim();
+        _editorChecks = string.Join("\n", checkLines).Trim();
+    }
+
+    private void CompileFormToContent()
+    {
+        if (_editingNode is null) return;
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(_editorReadAloud))
+        {
+            foreach (var line in _editorReadAloud.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                sb.AppendLine(trimmed.StartsWith('>') ? trimmed : $"> {trimmed}");
+            }
+            sb.AppendLine();
+        }
+        if (!string.IsNullOrWhiteSpace(_editorChecks))
+        {
+            sb.AppendLine(_editorChecks.Trim());
+            sb.AppendLine();
+        }
+        if (_editingNode.LinkedEntities.Count > 0)
+        {
+            var links = _editingNode.LinkedEntities.Select(p => $"[`{System.IO.Path.GetFileNameWithoutExtension(p)}`]({p})");
+            sb.AppendLine($"**Gekoppelde entiteiten:** {string.Join(", ", links)}");
+        }
+        _editingNode.Content = sb.ToString().Trim();
+    }
+
+    private void SwitchEditorTab(string tab)
+    {
+        if (tab == _editorTab) return;
+
+        if (_editorTab == "form")
+        {
+            CompileFormToContent();
+        }
+        else
+        {
+            if (_editingNode is not null)
+            {
+                ParseContentForForm(_editingNode.Content);
+            }
+        }
+
+        _editorTab = tab;
+    }
+
+    private void OnEditorTypeChanged()
+    {
+        if (_editingNode is null) return;
+        _editingNode.NodeType = _editingNodeType;
+        var icon = _editingNode.GetArchetypeIcon();
+        var stripped = StripArchetypeIcon(_editingNode.Title);
+        _editingNode.Title = $"{icon} {stripped}";
+    }
+
+    private static string StripArchetypeIcon(string title)
+    {
+        var icons = new[] { "⚔️", "🗣️", "🧩", "🔍", "🚪", "🏕️", "📖", "⚔", "🗣", "🧩", "🔍", "🚪", "🏕", "📖" };
+        var result = title;
+        foreach (var ic in icons)
+        {
+            result = result.Replace(ic, "");
+        }
+        return result.Trim();
+    }
+
+    private static string CleanTitle(SessionFlowNode node)
+    {
+        var stripped = StripArchetypeIcon(node.Title);
+        return string.IsNullOrWhiteSpace(stripped) ? node.Title : stripped;
+    }
+
+    private void HandleEntityAddFromDropdown(ChangeEventArgs e)
+    {
+        var selected = e.Value?.ToString();
+        if (!string.IsNullOrWhiteSpace(selected) && _editingNode is not null)
+        {
+            if (!_editingNode.LinkedEntities.Contains(selected, StringComparer.OrdinalIgnoreCase))
+            {
+                _editingNode.LinkedEntities.Add(selected);
+            }
+        }
+    }
+
+    private void RemoveLinkedEntity(string entityPath)
+    {
+        _editingNode?.LinkedEntities.RemoveAll(p => string.Equals(p, entityPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void InsertReadAloudHelper()
+    {
+        if (_editingNode is null) return;
+        _editingNode.Content += "\n\n> Beschrijf hier de omgeving en sfeer voor de spelers...";
+    }
+
+    private void InsertDcCheckHelper()
+    {
+        if (_editingNode is null) return;
+        _editingNode.Content += "\n\n*Mogelijke checks:*\n- **DC 10:** Basisinformatie opmerken.\n- **DC 15:** Verborgen detail of voordeel ontdekken.\n- **DC 20:** Volledig geheim ontrafelen.";
+    }
+
+    private void CancelNodeEditor()
+    {
+        if (_pendingDragNode is not null && Graph is not null)
+        {
+            Graph.Nodes.Remove(_pendingDragNode);
+            if (_pendingDragEdge is not null)
+            {
+                Graph.Edges.Remove(_pendingDragEdge);
+            }
+        }
+        _pendingDragNode = null;
+        _pendingDragEdge = null;
+        _editingNode = null;
+        _editingEdge = null;
+        _draggedNode = null;
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+        _isPanning = false;
+    }
+
+    private void ConfirmNodeEditor()
+    {
+        if (_editorTab == "form")
+        {
+            CompileFormToContent();
+        }
+        if (_editingNode is not null)
+        {
+            _editingNode.NodeType = _editingNodeType;
+        }
+
+        _pendingDragNode = null;
+        _pendingDragEdge = null;
+        _editingNode = null;
+        _editingEdge = null;
+        _draggedNode = null;
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+        _isPanning = false;
+    }
+
+    private void CancelEdgeEditor()
+    {
+        if (_pendingDragEdge is not null && Graph is not null)
+        {
+            Graph.Edges.Remove(_pendingDragEdge);
+        }
+        _pendingDragEdge = null;
+        _editingEdge = null;
+        _draggedNode = null;
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+        _isPanning = false;
+    }
+
+    private void ConfirmEdgeEditor()
+    {
+        _pendingDragEdge = null;
+        _editingEdge = null;
+        _draggedNode = null;
+        _isDraggingConnection = false;
+        _connectingSourceNode = null;
+        _isPanning = false;
+    }
+
+    private void DeleteEditingEdge()
+    {
+        if (_editingEdge is not null && Graph is not null)
+        {
+            Graph.Edges.Remove(_editingEdge);
+            _editingEdge = null;
+        }
+    }
+
+    private void AutoLayout()
+    {
+        Graph?.CalculateAutoLayout();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Graph is not null)
+        {
+            await OnSaveGraph.InvokeAsync(Graph);
+        }
+    }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text[..maxLength].TrimEnd() + "…";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_wheelHandler is not null)
+        {
+            try
+            {
+                await _wheelHandler.InvokeVoidAsync("dispose");
+                await _wheelHandler.DisposeAsync();
+            }
+            catch
+            {
+            }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

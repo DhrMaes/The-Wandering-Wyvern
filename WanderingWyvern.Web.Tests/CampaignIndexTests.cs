@@ -96,4 +96,47 @@ public sealed class CampaignIndexTests
 
         Assert.AreEqual(1, index.TotalEntityCount);
     }
+
+    [TestMethod]
+    public void CampaignEntity_CharacterPropertiesAndStandeeDetection_WorkCorrectly()
+    {
+        var dummyDoc = new CampaignDocument
+        {
+            RelativePath = "NPCs/robert/robert.md",
+            Title = "Robert",
+            HasExplicitTitle = true,
+            FileName = "robert"
+        };
+
+        var logboekDoc = new CampaignDocument
+        {
+            RelativePath = "NPCs/robert/logboek.md",
+            Title = "Logboek",
+            HasExplicitTitle = true,
+            FileName = "logboek"
+        };
+
+        var entity = new CampaignEntity
+        {
+            Type = CampaignEntityType.Npc,
+            Slug = "robert",
+            Title = "Robert",
+            RelativeFolderPath = "NPCs/robert",
+            Documents = new Dictionary<string, CampaignDocument>
+            {
+                ["robert"] = dummyDoc,
+                ["logboek"] = logboekDoc
+            },
+            Images = ["NPCs/robert/robert.png", "NPCs/robert/robert-standee.png"],
+            OtherFiles = ["NPCs/robert/robert-standee.pdf"]
+        };
+
+        Assert.IsTrue(entity.IsCharacter);
+        Assert.AreEqual("NPCs/robert/robert.png", entity.PortraitImage);
+        Assert.AreEqual(1, entity.StandeeImages.Count);
+        Assert.AreEqual("NPCs/robert/robert-standee.png", entity.StandeeImages[0]);
+        Assert.AreEqual(1, entity.OtherFiles.Count);
+        Assert.AreEqual("NPCs/robert/robert-standee.pdf", entity.OtherFiles[0]);
+        Assert.AreEqual(2, entity.Documents.Count);
+    }
 }

@@ -1,0 +1,528 @@
+@inject CampaignClientState CampaignState
+@using DhrMaes.WanderingWyvern.Core.Models
+@using DhrMaes.WanderingWyvern.Core.Services
+@using System.Text.Encodings.Web
+
+<div class="combat-tracker-container" id="combat-tracker">
+    <!-- Header Controls -->
+    <div class="combat-header">
+        <div class="combat-title-area">
+            <span class="combat-badge">⚔️ Gevecht Tracker</span>
+            @if (Combat.IsActive)
+            {
+                <span class="combat-round-badge">Ronde @Combat.Round</span>
+            }
+        </div>
+        <div class="combat-header-actions">
+            @if (!Combat.IsActive && Combat.Participants.Count > 0)
+            {
+                <button type="button" class="combat-btn-primary" @onclick="StartCombatAsync" title="Sorteer op initiative en start het gevecht">
+                    ▶ Start Gevecht
+                </button>
+            }
+            else if (Combat.IsActive)
+            {
+                <button type="button" class="combat-btn-secondary" @onclick="PreviousTurnAsync" title="Ga terug naar vorige beurt">
+                    ⏮ Vorige
+                </button>
+                <button type="button" class="combat-btn-primary" @onclick="NextTurnAsync" title="Ga naar de volgende beurt">
+                    Volgende ⏭
+                </button>
+                <button type="button" class="combat-btn-danger" @onclick="EndCombatAsync" title="Beëindig het gevecht en log naar Live Notes">
+                    ⏹ Einde
+                </button>
+            }
+            <button type="button" class="combat-btn-close" @onclick="OnClose" title="Sluit het gevechtspaneel">✕</button>
+        </div>
+    </div>
+
+    <!-- Active Turn Banner -->
+    @if (Combat.IsActive && ActiveParticipant is not null)
+    {
+        <div class="combat-active-banner">
+            <div class="combat-active-info">
+                <span class="combat-active-label">★ AAN DE BEURT</span>
+                <strong class="combat-active-name">@ActiveParticipant.Name</strong>
+            </div>
+            <div class="combat-active-stats">
+                <span class="stat-chip" title="Pantserklasse">🛡️ AC @ActiveParticipant.ArmorClass</span>
+                <span class="stat-chip" title="Levenspunten">❤️ @ActiveParticipant.CurrentHp / @ActiveParticipant.MaxHp HP</span>
+                @if (!string.IsNullOrEmpty(ActiveParticipant.Speed))
+                {
+                    <span class="stat-chip" title="Snelheid">👟 @ActiveParticipant.Speed</span>
+                }
+            </div>
+        </div>
+
+        <!-- Active Participant Actions & Attacks (if any) -->
+        @if (ActiveParticipant.Actions.Count > 0)
+        {
+            <div class="combat-actions-accordion">
+                <div class="combat-actions-header">
+                    <span>⚡ Acties & Aanvallen van @ActiveParticipant.Name:</span>
+                </div>
+                <div class="combat-actions-list">
+                    @foreach (var act in ActiveParticipant.Actions)
+                    {
+                        <div class="combat-action-card archetype-@act.Type.ToLowerInvariant()">
+                            <div class="action-card-top">
+                                <strong class="action-card-name">@act.Name</strong>
+                                <span class="action-card-type">@act.Type</span>
+                                @if (!string.IsNullOrEmpty(act.AttackBonus))
+                                {
+                                    <span class="action-card-bonus">🎯 @act.AttackBonus</span>
+                                }
+                                @if (!string.IsNullOrEmpty(act.Damage))
+                                {
+                                    <span class="action-card-damage">💥 @act.Damage</span>
+                                }
+                            </div>
+                            <p class="action-card-desc">@act.Description</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- Participant List (Initiative Order) -->
+    <div class="combat-participant-list">
+        @if (Combat.Participants.Count == 0)
+        {
+            <div class="combat-empty-notice">
+                <p>Nog geen deelnemers in het gevecht.</p>
+                <span>Voeg hieronder de spelers of monsters toe om te beginnen!</span>
+            </div>
+        }
+        else
+        {
+            @for (var i = 0; i < Combat.Participants.Count; i++)
+            {
+                var index = i;
+                var p = Combat.Participants[i];
+                var isTurn = Combat.IsActive && Combat.ActiveParticipantIndex == index;
+
+                <div class="combat-participant-card @(isTurn ? "is-active-turn" : "") @(p.IsDefeated ? "is-defeated" : "")">
+                    <!-- Top Row: Order / Name / Initiative / Actions -->
+                    <div class="participant-top-row">
+                        <div class="participant-title-group">
+                            <span class="participant-type-icon">@(p.IsPlayerCharacter ? "🧙" : "👾")</span>
+                            <strong class="participant-name">@p.Name</strong>
+                            <span class="participant-ac-badge" title="Armor Class">🛡️ @p.ArmorClass</span>
+                        </div>
+
+                        <div class="participant-init-group">
+                            <label class="init-label" title="Initiative worp">Init:</label>
+                            <input type="number"
+                                   class="init-input"
+                                   value="@p.Initiative"
+                                   @onchange="@(e => UpdateInitiative(p, e.Value))"
+                                   title="Voer fysieke initiative worp in" />
+                            <button type="button" class="participant-remove-btn" @onclick="() => RemoveParticipant(p)" title="Verwijder uit gevecht">✕</button>
+                        </div>
+                    </div>
+
+                    <!-- HP Progress Bar & Values -->
+                    <div class="participant-hp-section">
+                        <div class="hp-bar-track">
+                            <div class="hp-bar-fill @GetHpBarColorClass(p)" style="width: @(p.GetHpPercentage().ToString("0", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+                        </div>
+
+                        <div class="hp-values-row">
+                            <div class="hp-readout">
+                                <span class="hp-current">@p.CurrentHp</span> / <span class="hp-max">@p.MaxHp</span>
+                                @if (p.TempHp > 0)
+                                {
+                                    <span class="hp-temp" title="Tijdelijke HP">(+@p.TempHp temp)</span>
+                                }
+                                @if (p.IsDefeated)
+                                {
+                                    <span class="hp-defeated-badge">💀 Uitgeschakeld</span>
+                                }
+                            </div>
+
+                            <!-- Quick Damage / Healing Inputs -->
+                            <div class="hp-delta-actions">
+                                <input type="number"
+                                       class="hp-delta-input"
+                                       placeholder="HP"
+                                       min="1"
+                                       value="@GetPendingDelta(p.Id)"
+                                       @onchange="@(e => SetPendingDelta(p.Id, e.Value))" />
+                                <button type="button" class="hp-damage-btn" @onclick="() => ApplyDamageToParticipant(p)" title="Schade toebrengen">
+                                    💥 Schade
+                                </button>
+                                <button type="button" class="hp-heal-btn" @onclick="() => ApplyHealingToParticipant(p)" title="Genezen">
+                                    💚 Genezing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Conditions & Status Effects -->
+                    <div class="participant-conditions-row">
+                        @if (p.Conditions.Count > 0)
+                        {
+                            <div class="active-conditions-list">
+                                @foreach (var cond in p.Conditions)
+                                {
+                                    <button type="button" class="condition-chip" @onclick="() => p.ToggleCondition(cond)" title="Klik om @cond te verwijderen">
+                                        @GetConditionIcon(cond) @cond ✕
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        <div class="add-condition-picker">
+                            <select class="condition-select" @onchange="@(e => OnConditionSelected(p, e.Value))">
+                                <option value="">+ Conditie...</option>
+                                @foreach (var cond in CommonConditions)
+                                {
+                                    <option value="@cond">@cond</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <!-- Quick-Add Drawer ("Wie doet er mee?") -->
+    <div class="combat-quick-add-panel">
+        <div class="quick-add-header">
+            <span>➕ Deelnemers Toevoegen</span>
+        </div>
+
+        <div class="quick-add-row">
+            <button type="button" class="quick-add-btn" @onclick="AddAllCampaignPcsAsync" title="Voeg alle actieve spelers (PCs) uit de campagne toe">
+                🧙 Voeg Spelers (Party) Toe
+            </button>
+        </div>
+
+        <!-- Add from Campaign NPCs / Monsters -->
+        @if (CampaignState.Current?.Npcs is not null && CampaignState.Current.Npcs.Count > 0)
+        {
+            <div class="quick-add-npc-form">
+                <select class="quick-add-select" @bind="_selectedNpcSlug">
+                    <option value="">Kies NPC / Monster...</option>
+                    @foreach (var npc in CampaignState.Current.Npcs.OrderBy(n => n.Title))
+                    {
+                        <option value="@npc.Slug">@npc.Title</option>
+                    }
+                </select>
+
+                <div class="quick-add-multiplier">
+                    <label>Aantal:</label>
+                    <input type="number" class="multiplier-input" min="1" max="20" @bind="_npcMultiplier" />
+                </div>
+
+                <button type="button" class="quick-add-btn" @onclick="AddSelectedNpcAsync" disabled="@string.IsNullOrEmpty(_selectedNpcSlug)">
+                    ➕ Voeg toe
+                </button>
+            </div>
+        }
+
+        <!-- Add Custom Creature -->
+        <details class="custom-creature-details">
+            <summary>Aangepast wezen / vijand handmatig toevoegen</summary>
+            <div class="custom-creature-form">
+                <input type="text" class="custom-input" placeholder="Naam (bv. Goblin Archer)" @bind="_customName" />
+                <div class="custom-stats-row">
+                    <input type="number" class="custom-stat-input" placeholder="HP" min="1" @bind="_customHp" title="Max Hit Points" />
+                    <input type="number" class="custom-stat-input" placeholder="AC" min="1" @bind="_customAc" title="Armor Class" />
+                    <input type="number" class="custom-stat-input" placeholder="Init" @bind="_customInit" title="Initiative worp" />
+                </div>
+                <button type="button" class="quick-add-btn add-custom-btn" @onclick="AddCustomCreature">
+                    Toevoegen aan gevecht
+                </button>
+            </div>
+        </details>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public CombatState Combat { get; set; } = new();
+
+    [Parameter]
+    public string SessionSlug { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnLogEvent { get; set; }
+
+    private CombatParticipant? ActiveParticipant => Combat.GetActiveParticipant();
+
+    private readonly Dictionary<string, int?> _pendingHpDeltas = new();
+    private string _selectedNpcSlug = string.Empty;
+    private int _npcMultiplier = 1;
+
+    private string _customName = string.Empty;
+    private int _customHp = 20;
+    private int _customAc = 12;
+    private int _customInit = 10;
+
+    private static readonly string[] CommonConditions = [
+        "Blind",
+        "Charmed",
+        "Concentrating",
+        "Deafened",
+        "Frightened",
+        "Grappled",
+        "Incapacitated",
+        "Invisible",
+        "Paralyzed",
+        "Petrified",
+        "Poisoned",
+        "Prone",
+        "Restrained",
+        "Stunned",
+        "Unconscious"
+    ];
+
+    public async Task StartCombatAsync()
+    {
+        if (Combat.Participants.Count == 0) return;
+
+        // Sort descending by initiative
+        Combat.Participants = Combat.Participants.OrderByDescending(p => p.Initiative).ToList();
+        Combat.IsActive = true;
+        Combat.Round = 1;
+        Combat.ActiveParticipantIndex = 0;
+
+        var names = string.Join(", ", Combat.Participants.Select(p => p.Name));
+        await LogCombatEventAsync($"⚔️ Gevecht gestart (Ronde 1): {names}");
+    }
+
+    public async Task NextTurnAsync()
+    {
+        if (Combat.Participants.Count == 0) return;
+
+        Combat.ActiveParticipantIndex++;
+        if (Combat.ActiveParticipantIndex >= Combat.Participants.Count)
+        {
+            Combat.ActiveParticipantIndex = 0;
+            Combat.Round++;
+            await LogCombatEventAsync($"⚔️ Ronde {Combat.Round} begint!");
+        }
+    }
+
+    public async Task PreviousTurnAsync()
+    {
+        if (Combat.Participants.Count == 0) return;
+
+        Combat.ActiveParticipantIndex--;
+        if (Combat.ActiveParticipantIndex < 0)
+        {
+            if (Combat.Round > 1)
+            {
+                Combat.Round--;
+                Combat.ActiveParticipantIndex = Combat.Participants.Count - 1;
+            }
+            else
+            {
+                Combat.ActiveParticipantIndex = 0;
+            }
+        }
+    }
+
+    public async Task EndCombatAsync()
+    {
+        Combat.IsActive = false;
+        await LogCombatEventAsync($"⚔️ Gevecht beëindigd in ronde {Combat.Round}.");
+    }
+
+    public async Task AddAllCampaignPcsAsync()
+    {
+        if (CampaignState.Current?.Pcs is null) return;
+
+        foreach (var pc in CampaignState.Current.Pcs)
+        {
+            // Don't add duplicate if already present
+            if (Combat.Participants.Any(p => string.Equals(p.Name, pc.Title, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var rawMarkdown = pc.PrimaryDocument is not null
+                ? await CampaignState.ReadDocumentAsync(pc.PrimaryDocument.RelativePath)
+                : null;
+
+            var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+            var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
+
+            Combat.Participants.Add(new CombatParticipant
+            {
+                Name = pc.Title,
+                IsPlayerCharacter = true,
+                EntityRelativePath = pc.PrimaryDocument?.RelativePath,
+                ArmorClass = ac > 10 ? ac : 14, // Reasonable fallback for PCs if unparsed
+                MaxHp = hp > 10 ? hp : 25,
+                CurrentHp = hp > 10 ? hp : 25,
+                Speed = speed,
+                Initiative = 10,
+                Actions = actions
+            });
+        }
+    }
+
+    public async Task AddSelectedNpcAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedNpcSlug) || CampaignState.Current?.Npcs is null) return;
+
+        var npc = CampaignState.Current.Npcs.FirstOrDefault(n => string.Equals(n.Slug, _selectedNpcSlug, StringComparison.OrdinalIgnoreCase));
+        if (npc is null) return;
+
+        var rawMarkdown = npc.PrimaryDocument is not null
+            ? await CampaignState.ReadDocumentAsync(npc.PrimaryDocument.RelativePath)
+            : null;
+
+        var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+        var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
+
+        for (var i = 1; i <= Math.Max(1, _npcMultiplier); i++)
+        {
+            var name = _npcMultiplier > 1 ? $"{npc.Title} {i}" : npc.Title;
+            Combat.Participants.Add(new CombatParticipant
+            {
+                Name = name,
+                IsPlayerCharacter = false,
+                EntityRelativePath = npc.PrimaryDocument?.RelativePath,
+                ArmorClass = ac,
+                MaxHp = hp,
+                CurrentHp = hp,
+                Speed = speed,
+                Initiative = 10,
+                Actions = actions
+            });
+        }
+
+        _selectedNpcSlug = string.Empty;
+        _npcMultiplier = 1;
+    }
+
+    public void AddCustomCreature()
+    {
+        if (string.IsNullOrWhiteSpace(_customName)) return;
+
+        Combat.Participants.Add(new CombatParticipant
+        {
+            Name = _customName.Trim(),
+            IsPlayerCharacter = false,
+            ArmorClass = _customAc,
+            MaxHp = _customHp,
+            CurrentHp = _customHp,
+            Initiative = _customInit
+        });
+
+        _customName = string.Empty;
+        _customHp = 20;
+        _customAc = 12;
+        _customInit = 10;
+    }
+
+    private int? GetPendingDelta(string id) =>
+        _pendingHpDeltas.TryGetValue(id, out var val) ? val : null;
+
+    private void SetPendingDelta(string id, object? value)
+    {
+        if (value is not null && int.TryParse(value.ToString(), out var parsed))
+        {
+            _pendingHpDeltas[id] = parsed;
+        }
+        else
+        {
+            _pendingHpDeltas[id] = null;
+        }
+    }
+
+    private void UpdateInitiative(CombatParticipant participant, object? value)
+    {
+        if (value is not null && int.TryParse(value.ToString(), out var init))
+        {
+            participant.Initiative = init;
+        }
+    }
+
+    private void ApplyDamageToParticipant(CombatParticipant participant)
+    {
+        var amount = GetPendingDelta(participant.Id);
+        if (amount.HasValue && amount.Value > 0)
+        {
+            var wasAlive = !participant.IsDefeated;
+            participant.ApplyDamage(amount.Value);
+            _pendingHpDeltas[participant.Id] = null;
+
+            if (wasAlive && participant.IsDefeated)
+            {
+                _ = LogCombatEventAsync($"💀 {participant.Name} is uitgeschakeld!");
+            }
+        }
+    }
+
+    private void ApplyHealingToParticipant(CombatParticipant participant)
+    {
+        var amount = GetPendingDelta(participant.Id);
+        if (amount.HasValue && amount.Value > 0)
+        {
+            participant.ApplyHealing(amount.Value);
+            _pendingHpDeltas[participant.Id] = null;
+        }
+    }
+
+    private void RemoveParticipant(CombatParticipant participant)
+    {
+        var idx = Combat.Participants.IndexOf(participant);
+        if (idx >= 0)
+        {
+            Combat.Participants.RemoveAt(idx);
+            if (Combat.ActiveParticipantIndex >= Combat.Participants.Count && Combat.Participants.Count > 0)
+            {
+                Combat.ActiveParticipantIndex = 0;
+            }
+        }
+    }
+
+    private void OnConditionSelected(CombatParticipant participant, object? value)
+    {
+        if (value is string condition && !string.IsNullOrWhiteSpace(condition))
+        {
+            participant.ToggleCondition(condition);
+        }
+    }
+
+    private static string GetHpBarColorClass(CombatParticipant p)
+    {
+        var pct = p.GetHpPercentage();
+        if (pct <= 0) return "hp-defeated";
+        if (pct <= 25) return "hp-critical";
+        if (pct <= 50) return "hp-bloodied";
+        return "hp-healthy";
+    }
+
+    private static string GetConditionIcon(string condition) => condition.ToLowerInvariant() switch
+    {
+        "concentrating" => "🧠",
+        "poisoned" => "🤢",
+        "prone" => "🧎",
+        "stunned" or "paralyzed" => "⚡",
+        "blind" or "blinded" => "🙈",
+        "unconscious" => "💤",
+        "invisible" => "👻",
+        "frightened" => "😨",
+        _ => "⚠️"
+    };
+
+    private async Task LogCombatEventAsync(string message)
+    {
+        if (OnLogEvent.HasDelegate)
+        {
+            await OnLogEvent.InvokeAsync(message);
+        }
+        else if (!string.IsNullOrEmpty(SessionSlug))
+        {
+            await CampaignState.AppendNoteAsync(SessionSlug, message);
+        }
+    }
+}

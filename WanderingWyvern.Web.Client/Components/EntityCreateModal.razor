@@ -1,5 +1,6 @@
 @namespace DhrMaes.WanderingWyvern.Web.Client.Components
 @using DhrMaes.WanderingWyvern.Web.Client.Models
+@using DhrMaes.WanderingWyvern.Core.Services
 
 @if (IsVisible)
 {
@@ -517,7 +518,28 @@
                 }
                 else if (FolderName?.ToLowerInvariant() == "sessies")
                 {
-                    <div class="entity-create-row">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Kies een Avontuur-Sjabloon (Verhaallijn)</label>
+                        <div class="session-template-picker">
+                            @foreach (var tmpl in SessionFlowTemplates.All)
+                            {
+                                var isSel = SessionTemplate == tmpl.Id;
+                                <div class="session-template-card @(isSel ? "is-selected" : "")"
+                                     @onclick="() => SessionTemplate = tmpl.Id">
+                                    <span class="template-card-icon">@tmpl.Icon</span>
+                                    <div class="template-card-info">
+                                        <div class="template-card-title">@tmpl.Name</div>
+                                        <div class="template-card-desc">@tmpl.Description</div>
+                                    </div>
+                                    <div class="template-card-radio">
+                                        <input type="radio" name="sessionTemplate" checked="@isSel" />
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="entity-create-row" style="margin-top: 1rem;">
                         <div>
                             <label for="sessionDate" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">In-game Datum (Optioneel)</label>
                             <input type="text" id="sessionDate" class="entity-create-input" @bind="SessionDate" @bind:event="oninput" @onkeyup="HandleKeyUp" placeholder="Bv. 14 Kythorn, 1492 DR" />
@@ -634,6 +656,7 @@
     public string SessionDate { get; set; } = "";
     public string SessionLocation { get; set; } = "";
     public string SessionObjective { get; set; } = "";
+    public string SessionTemplate { get; set; } = SessionFlowTemplates.ClassicForkId;
 
     private TaskCompletionSource<EntityCreateResult?>? _tcs;
 
@@ -696,6 +719,7 @@
         SessionDate = "";
         SessionLocation = "";
         SessionObjective = "";
+        SessionTemplate = SessionFlowTemplates.ClassicForkId;
         IsVisible = true;
         _tcs = new TaskCompletionSource<EntityCreateResult?>();
         StateHasChanged();
@@ -748,6 +772,7 @@
             SessionDate: SessionDate,
             SessionLocation: SessionLocation,
             SessionObjective: SessionObjective,
+            SessionTemplate: SessionTemplate,
             ItemType: ItemType,
             ItemRarity: ItemRarity,
             RequiresAttunement: RequiresAttunement,

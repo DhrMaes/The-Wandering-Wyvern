@@ -1,10 +1,14 @@
 @implements IDisposable
 @inject CampaignClientState CampaignState
 @inject CampaignMarkdownRenderer Renderer
+@inject IJSRuntime JS
+@using DhrMaes.WanderingWyvern.Core.Models
+@using DhrMaes.WanderingWyvern.Core.Services
+@using System.Text.Encodings.Web
 
 <PageTitle>@(_session?.Title ?? Slug)</PageTitle>
 
-<div class="page-container">
+<div class="page-container session-page-container">
     <a class="back-link" href="/">&larr; Terug naar overzicht</a>
 
     @if (CampaignState.Current is null)
@@ -21,62 +25,213 @@
             <h1>@_session.Title</h1>
             <div class="session-view-controls" role="group" aria-label="Weergavemodus">
                 <button type="button"
-                        class="session-view-btn @(!_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                        class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
                         @onclick="ShowSplitView"
                         title="Gesplitste weergave (beide panelen)">
                     <span class="view-btn-icon">◫</span> Gesplitst
                 </button>
                 <button type="button"
-                        class="session-view-btn @(!_isOutlineCollapsed && _isScriptCollapsed ? "is-active" : "")"
+                        class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && _isScriptCollapsed ? "is-active" : "")"
                         @onclick="ShowOutlineOnly"
                         title="Alleen outline tonen (volledig scherm)">
                     <span class="view-btn-icon">◧</span> Alleen outline
                 </button>
                 <button type="button"
-                        class="session-view-btn @(_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                        class="session-view-btn @(!_isFlowView && _isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
                         @onclick="ShowScriptOnly"
                         title="Alleen script tonen (volledig scherm)">
                     <span class="view-btn-icon">◨</span> Alleen script
                 </button>
+                <button type="button"
+                        class="session-view-btn @(_isFlowView ? "is-active" : "")"
+                        @onclick="ShowFlowView"
+                        title="Interactieve flowchart en sessie-bouwer">
+                    <span class="view-btn-icon">☍</span> Flow & Builder
+                </button>
+                <button type="button"
+                        class="session-view-btn combat-tracker-btn @(_isCombatTrackerOpen ? "is-combat-active" : "")"
+                        @onclick="ToggleCombatTracker"
+                        title="Open of sluit het Gevecht / Combat Tracker zijpaneel">
+                    <span class="view-btn-icon">⚔️</span> Gevecht @(_combatState.IsActive ? $" (Ronde {_combatState.Round})" : "")
+                </button>
             </div>
         </div>
 
-        <div class="split-pane @GetSplitPaneClass()">
-            <div class="split-pane-column outline-column">
-                <EditableDocument RelativePath="@($"Sessions/{Slug}/outline.md")" Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")">
-                    <Header>
-                        <h2>Outline (regie)</h2>
-                    </Header>
-                </EditableDocument>
-            </div>
-            <div class="split-pane-column script-column">
-                <EditableDocument RelativePath="@($"Sessions/{Slug}/script.md")" Html="@(_scriptHtml ?? "<p><em>Laden...</em></p>")">
-                    <Header>
-                        <h2>Voorleesscript</h2>
-                    </Header>
-                </EditableDocument>
-            </div>
-        </div>
-
-        @if (_recapHtml is not null)
+        @if (_flowGraph is not null && _flowGraph.Nodes.Count > 0 && !_isFlowView)
         {
-            <section class="recap-panel">
-                <EditableDocument RelativePath="@($"Sessions/{Slug}/recap.md")" Html="@_recapHtml">
-                    <Header>
-                        <h2>Recap</h2>
-                    </Header>
-                </EditableDocument>
-            </section>
+            <SessionChoiceBar Graph="_flowGraph"
+                              ChosenPath="_chosenPath"
+                              SplitActiveNodeIds="_splitActiveNodeIds"
+                              FocusedSplitNodeId="_focusedSplitNodeId"
+                              ShowAllBranches="_showAllBranches"
+                              OnChoiceSelected="HandleChoiceSelectedAsync"
+                              OnUndo="HandleUndoChoiceAsync"
+                              OnReset="HandleResetChoicesAsync"
+                              OnToggleShowAll="HandleToggleShowAllAsync"
+                              OnNavigateToScene="ScrollToSceneAsync"
+                              OnSelectSplitNode="SetFocusedSplitNodeAsync"
+                              OnPartySplit="TriggerPartySplitFromJs" />
         }
 
-        <div class="live-notes">
-            <h2>Live notities (voor de recap)</h2>
-            @if (!string.IsNullOrWhiteSpace(_existingNotes))
+        @if (_isFlowView)
+        {
+            <div class="session-flow-view-panel">
+                <SessionFlowCanvas Graph="_flowGraph"
+                                   ChosenPath="_chosenPath"
+                                   OnChoiceSelected="HandleChoiceSelectedAsync"
+                                   OnNavigateToScene="ScrollToSceneAsync"
+                                   OnSaveGraph="HandleSaveGraphAsync" />
+            </div>
+        }
+        else
+        {
+            <div class="split-pane @GetSplitPaneClass() @(_isCombatTrackerOpen ? "has-combat-tracker" : "")">
+                <div class="split-pane-column outline-column">
+                    <EditableDocument RelativePath="@($"Sessions/{Slug}/outline.md")" Html="@(_outlineHtml ?? "<p><em>Laden...</em></p>")">
+                        <Header>
+                            <h2>Outline (regie)</h2>
+                        </Header>
+                    </EditableDocument>
+                </div>
+                <div class="split-pane-column script-column">
+                    <EditableDocument RelativePath="@($"Sessions/{Slug}/script.md")" Html="@(_scriptHtml ?? "<p><em>Laden...</em></p>")">
+                        <Header>
+                            <div class="script-column-header-title">
+                                <h2>Voorleesscript</h2>
+                                @if (_flowGraph is not null && _flowGraph.Edges.Count > 0)
+                                {
+                                    <span class="script-mode-badge @(_showAllBranches ? "all-mode" : "focus-mode")">
+                                        @(_showAllBranches ? "📜 Alle scènes" : "🎯 Focusmodus")
+                                    </span>
+                                }
+                            </div>
+                        </Header>
+                    </EditableDocument>
+                </div>
+                @if (_isCombatTrackerOpen)
+                {
+                    <div class="split-pane-column combat-column">
+                        <CombatTrackerPanel Combat="_combatState"
+                                            SessionSlug="@Slug"
+                                            OnClose="ToggleCombatTracker"
+                                            OnLogEvent="HandleCombatLogEventAsync" />
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_recapHtml is not null && !_isFlowView)
+        {
+            <details class="recap-panel">
+                <summary class="recap-panel-summary">
+                    <span class="recap-summary-icon">📜</span>
+                    <strong class="recap-summary-title">Recap van vorige sessie</strong>
+                    <span class="recap-summary-hint">(klik om te bekijken)</span>
+                </summary>
+                <div class="recap-panel-body">
+                    <EditableDocument RelativePath="@($"Sessions/{Slug}/recap.md")" Html="@_recapHtml">
+                        <Header>
+                            <h2>Recap</h2>
+                        </Header>
+                    </EditableDocument>
+                </div>
+            </details>
+        }
+
+        <!-- Floating Live Notes Widget (Chatbot style) -->
+        <div class="live-notes-floating-widget @(_isLiveNotesOpen ? "is-open" : "is-collapsed")" role="complementary" aria-label="Live notities aan tafel">
+            @if (_isLiveNotesOpen)
             {
-                <pre>@_existingNotes</pre>
+                <div class="live-notes-chat-window">
+                    <div class="live-notes-chat-header">
+                        <div class="chat-header-title">
+                            <span class="chat-header-icon">📝</span>
+                            <strong>Live Notities</strong>
+                            @if (GetNoteCount() > 0)
+                            {
+                                <span class="chat-count-badge">@GetNoteCount()</span>
+                            }
+                        </div>
+                        <div class="chat-header-actions">
+                            <button type="button" class="chat-header-btn" @onclick="ToggleLiveNotes" title="Minimaliseren">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="live-notes-chat-body" id="live-notes-chat-body">
+                        @if (!string.IsNullOrWhiteSpace(_existingNotes))
+                        {
+                            @foreach (var line in GetNoteLines())
+                            {
+                                var isChoice = line.StartsWith("Keuze gemaakt:");
+                                var isSplit = line.StartsWith("👥");
+                                var isReunion = line.StartsWith("🤝");
+                                var isSystem = isChoice || isSplit || isReunion;
+
+                                <div class="chat-note-message @(isSystem ? "is-system-event" : "is-user-note")">
+                                    @if (isChoice)
+                                    {
+                                        <span class="system-event-badge choice-badge">🧭 Keuze</span>
+                                        <div class="system-event-text">@line.Substring("Keuze gemaakt:".Length).Trim()</div>
+                                    }
+                                    else if (isSplit)
+                                    {
+                                        <span class="system-event-badge split-badge">👥 Splitsing</span>
+                                        <div class="system-event-text">@line.Substring(line.IndexOf(':') > 0 ? line.IndexOf(':') + 1 : 0).Trim()</div>
+                                    }
+                                    else if (isReunion)
+                                    {
+                                        <span class="system-event-badge reunion-badge">🤝 Herenigd</span>
+                                        <div class="system-event-text">@line</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="user-note-bubble">
+                                            <span class="user-note-text">@line</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="chat-empty-state">
+                                <span>📜 Nog geen notities gemaakt in deze sessie.</span>
+                                <small>Keuzes en splitsingen worden hier automatisch gelogd, of typ zelf een snelle noot!</small>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="live-notes-chat-footer">
+                        <input type="text"
+                               class="chat-input-field"
+                               @bind="_newNote"
+                               @bind:event="oninput"
+                               @onkeydown="HandleNoteKeyDown"
+                               placeholder="Typ een notitie... (Enter)" />
+                        <button type="button"
+                                class="chat-send-btn"
+                                @onclick="SaveNoteAsync"
+                                disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                                title="Opslaan">
+                            ➔
+                        </button>
+                    </div>
+                </div>
             }
-            <textarea @bind="_newNote" placeholder="Wat gebeurt er net aan tafel?"></textarea>
-            <p><button @onclick="SaveNoteAsync">Toevoegen</button></p>
+
+            <button type="button"
+                    class="live-notes-trigger-btn @(_isLiveNotesOpen ? "is-active" : "")"
+                    @onclick="ToggleLiveNotes"
+                    title="@(_isLiveNotesOpen ? "Sluit live notities" : "Open live notities aan tafel")">
+                <span class="trigger-icon">📝</span>
+                <span class="trigger-label">Live Notes</span>
+                @if (GetNoteCount() > 0)
+                {
+                    <span class="trigger-badge">@GetNoteCount()</span>
+                }
+            </button>
         </div>
     }
 </div>
@@ -85,31 +240,68 @@
     [Parameter]
     public required string Slug { get; set; }
 
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "tab")]
+    public string? InitialTab { get; set; }
+
     private CampaignEntity? _session;
     private string? _outlineHtml;
     private string? _scriptHtml;
     private string? _recapHtml;
     private string? _existingNotes;
     private string _newNote = string.Empty;
+
     private bool _isOutlineCollapsed;
     private bool _isScriptCollapsed;
+    private bool _isFlowView;
+    private bool _showAllBranches;
+
+    private SessionFlowGraph? _flowGraph;
+    private List<string> _chosenPath = [];
+    private List<string> _splitActiveNodeIds = [];
+    private string? _focusedSplitNodeId;
+    private bool _showSplitSideBySide;
+    private bool _isLiveNotesOpen;
+    private bool _isCombatTrackerOpen;
+    private readonly CombatState _combatState = new();
+    private readonly SessionFlowParser _flowParser = new();
+
+    private void ToggleCombatTracker()
+    {
+        _isCombatTrackerOpen = !_isCombatTrackerOpen;
+    }
+
+    private async Task HandleCombatLogEventAsync(string message)
+    {
+        await CampaignState.AppendNoteAsync(Slug, message);
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+        await InvokeAsync(StateHasChanged);
+    }
 
     private void ShowSplitView()
     {
+        _isFlowView = false;
         _isOutlineCollapsed = false;
         _isScriptCollapsed = false;
     }
 
     private void ShowOutlineOnly()
     {
+        _isFlowView = false;
         _isOutlineCollapsed = false;
         _isScriptCollapsed = true;
     }
 
     private void ShowScriptOnly()
     {
+        _isFlowView = false;
         _isOutlineCollapsed = true;
         _isScriptCollapsed = false;
+    }
+
+    private void ShowFlowView()
+    {
+        _isFlowView = true;
     }
 
     private string GetSplitPaneClass()
@@ -123,7 +315,13 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (string.Equals(InitialTab, "flow", StringComparison.OrdinalIgnoreCase))
+        {
+            _isFlowView = true;
+        }
         LoadSession();
+        await RestoreChosenPathAsync();
+        await RestoreSplitPartyStateAsync();
         await LoadDocumentsAsync();
         try
         {
@@ -163,8 +361,655 @@
     private async Task LoadDocumentsAsync()
     {
         _outlineHtml = await RenderDocumentAsync("outline");
-        _scriptHtml = await RenderDocumentAsync("script");
+        await LoadScriptWithFlowAsync();
         _recapHtml = await RenderOptionalDocumentAsync("recap");
+    }
+
+    private async Task LoadScriptWithFlowAsync()
+    {
+        if (_session is null || !_session.Documents.TryGetValue("script", out var document) || CampaignState.Current is null)
+        {
+            _scriptHtml = "<p><em>Nog niet aangemaakt.</em></p>";
+            _flowGraph = null;
+            return;
+        }
+
+        try
+        {
+            var rawMarkdown = await CampaignState.ReadDocumentAsync(document.RelativePath) ?? string.Empty;
+            _flowGraph = _flowParser.Parse(rawMarkdown);
+
+            // Initialize chosen path if empty
+            if (_chosenPath.Count == 0 && _flowGraph.Nodes.Count > 0)
+            {
+                _chosenPath.Add(_flowGraph.Nodes[0].Id);
+            }
+
+            if (_flowGraph.Edges.Count > 0)
+            {
+                _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+            }
+            else
+            {
+                _scriptHtml = await Renderer.RenderToHtmlAsync(document, CampaignState.Current);
+            }
+        }
+        catch
+        {
+            _scriptHtml = "<p><em>Kon script niet laden.</em></p>";
+        }
+    }
+
+    private string BuildBranchingScriptHtml(string rawMarkdown, SessionFlowGraph graph)
+    {
+        if (CampaignState.Current is null)
+            return string.Empty;
+
+        if (!_showAllBranches && _splitActiveNodeIds.Count > 1)
+        {
+            return BuildSplitPartyScriptHtml(rawMarkdown, graph);
+        }
+
+        var activeNodeId = _chosenPath.LastOrDefault() ?? (graph.Nodes.Count > 0 ? graph.Nodes[0].Id : null);
+        var activeNode = activeNodeId is not null ? graph.FindNode(activeNodeId) : null;
+
+        if (!_showAllBranches && activeNode is not null)
+        {
+            return BuildFocusedSceneHtml(rawMarkdown, graph, activeNode);
+        }
+
+        return BuildAllScenesScriptHtml(rawMarkdown, graph, activeNodeId);
+    }
+
+    private string BuildFocusedSceneHtml(string rawMarkdown, SessionFlowGraph graph, SessionFlowNode activeNode)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // Optional preamble on the start scene
+        if (graph.Nodes.Count > 0 && graph.Nodes[0].Id == activeNode.Id)
+        {
+            var preamble = SessionFlowParser.ExtractPreamble(rawMarkdown, graph);
+            if (!string.IsNullOrWhiteSpace(preamble))
+            {
+                var preambleHtml = Renderer.RenderMarkdownSnippetToHtml(preamble, $"Sessions/{Slug}/script.md", CampaignState.Current!);
+                sb.AppendLine($"<div class=\"session-preamble\">{preambleHtml}</div>");
+            }
+        }
+
+        sb.Append(BuildFocusedSceneCardHtml(graph, activeNode));
+        return sb.ToString();
+    }
+
+    private string BuildFocusedSceneCardHtml(SessionFlowGraph graph, SessionFlowNode node, string? groupLabel = null, bool isSideBySide = false)
+    {
+        var sb = new System.Text.StringBuilder();
+        var outgoing = graph.GetOutgoingEdges(node.Id);
+        var icon = node.GetArchetypeIcon();
+        var typeName = node.GetArchetypeLabel();
+
+        sb.AppendLine($"<section class=\"scene-focus-section {(isSideBySide ? "scene-split-side-card" : "")}\" id=\"scene-{node.Id}\">");
+
+        // Card header
+        sb.AppendLine("<div class=\"scene-focus-topbar\">");
+        if (!string.IsNullOrEmpty(groupLabel))
+        {
+            sb.AppendLine($"<span class=\"split-group-card-badge\">{HtmlEncoder.Default.Encode(groupLabel)}</span>");
+        }
+        else if (_chosenPath.Count > 1 && !isSideBySide)
+        {
+            var prevNodeId = _chosenPath[^2];
+            var prevNode = graph.FindNode(prevNodeId);
+            var prevTitle = prevNode?.Title ?? prevNodeId;
+            sb.AppendLine($"""
+                <a href="javascript:void(0)" class="scene-focus-back-btn" data-nav-target="{prevNodeId}" title="Ga terug naar {HtmlEncoder.Default.Encode(prevTitle)}">
+                    ↶ Terug naar: {HtmlEncoder.Default.Encode(prevTitle)}
+                </a>
+                """);
+        }
+        else if (!isSideBySide)
+        {
+            sb.AppendLine("<span class=\"scene-focus-start-badge\">🚀 Startpunt van het avontuur</span>");
+        }
+
+        sb.AppendLine("<div class=\"scene-topbar-badges\">");
+        if (node.NodeType == "combat")
+        {
+            sb.AppendLine($"""
+                <button type="button" class="scene-start-combat-btn" data-scene-id="{node.Id}" title="Start gevecht voor deze scène">
+                    ⚔️ Start Gevecht
+                </button>
+                """);
+        }
+        sb.AppendLine($"<span class=\"scene-focus-type-badge archetype-{node.NodeType}\">{icon} {typeName}</span>");
+        sb.AppendLine("</div>");
+        sb.AppendLine("</div>");
+
+        // Title
+        sb.AppendLine($"<h1 class=\"scene-focus-title\">{HtmlEncoder.Default.Encode(node.Title)}</h1>");
+
+        // Linked entities
+        if (node.LinkedEntities.Count > 0)
+        {
+            sb.AppendLine("<div class=\"scene-focus-entities\">");
+            foreach (var entityPath in node.LinkedEntities)
+            {
+                var lower = entityPath.ToLowerInvariant();
+                var entityIcon = lower switch
+                {
+                    var p when p.StartsWith("npcs") => "👤",
+                    var p when p.StartsWith("pcs") => "🧙",
+                    var p when p.StartsWith("items") => "🎒",
+                    var p when p.StartsWith("lore") => "📜",
+                    _ => "📍"
+                };
+                var entityName = System.IO.Path.GetFileNameWithoutExtension(entityPath);
+                sb.AppendLine($"""
+                    <a href="/document/{entityPath}" class="scene-entity-chip">
+                        <span class="entity-chip-icon">{entityIcon}</span> {HtmlEncoder.Default.Encode(entityName)}
+                    </a>
+                    """);
+            }
+            sb.AppendLine("</div>");
+        }
+
+        // Scene content (read-aloud quote and DM instructions)
+        var contentHtml = Renderer.RenderMarkdownSnippetToHtml(node.Content, $"Sessions/{Slug}/script.md", CampaignState.Current!);
+        sb.AppendLine($"<div class=\"scene-focus-content\">{contentHtml}</div>");
+
+        // Outgoing choice cards
+        if (outgoing.Count > 0)
+        {
+            sb.AppendLine("<div class=\"scene-focus-choices-box\">");
+            var promptText = !string.IsNullOrEmpty(groupLabel)
+                ? $"🔀 Waar gaat {HtmlEncoder.Default.Encode(groupLabel)} heen?"
+                : "🔀 Waar gaan de spelers heen?";
+            sb.AppendLine($"<div class=\"scene-choices-title-bar\">{promptText}</div>");
+            sb.AppendLine("<div class=\"scene-choices-cards\">");
+
+            foreach (var edge in outgoing)
+            {
+                var targetNode = graph.FindNode(edge.TargetNodeId);
+                var targetTitle = targetNode?.Title ?? edge.TargetNodeId;
+                var targetIcon = targetNode?.GetArchetypeIcon() ?? "🚪";
+                var label = string.IsNullOrWhiteSpace(edge.Label) ? "Kies dit pad" : edge.Label;
+
+                sb.AppendLine($"""
+                    <button type="button" class="scene-choice-card-btn" data-edge-source="{edge.SourceNodeId}" data-edge-target="{edge.TargetNodeId}">
+                        <span class="choice-card-icon">{targetIcon}</span>
+                        <div class="choice-card-text">
+                            <span class="choice-card-action">{HtmlEncoder.Default.Encode(label)} ➔</span>
+                            <span class="choice-card-target">Naar: {HtmlEncoder.Default.Encode(targetTitle)}</span>
+                        </div>
+                    </button>
+                    """);
+            }
+
+            // If there are multiple branches, offer party split (supports sub-splits!)
+            if (outgoing.Count >= 2)
+            {
+                var isSubSplit = _splitActiveNodeIds.Count > 1;
+                var splitAction = isSubSplit ? "Splits deze groep verder op!" : "De groep splitst zich!";
+                var splitTarget = isSubSplit
+                    ? $"Verdeel {groupLabel ?? "deze groep"} over {outgoing.Count} verschillende routes"
+                    : $"Volg parallel {outgoing.Count} verschillende paden";
+
+                sb.AppendLine($"""
+                    <button type="button" class="scene-choice-split-btn" data-split-source="{node.Id}" title="Splits op om meerdere routes tegelijk te verkennen">
+                        <span class="choice-card-icon">👥</span>
+                        <div class="choice-card-text">
+                            <span class="choice-card-action">{splitAction}</span>
+                            <span class="choice-card-target">{splitTarget}</span>
+                        </div>
+                    </button>
+                    """);
+            }
+
+            sb.AppendLine("</div></div>");
+        }
+        else
+        {
+            sb.AppendLine($"""
+                <div class="scene-focus-end-box">
+                    <span class="scene-end-icon">🏁</span>
+                    <div class="scene-end-text">
+                        <strong>Einde van deze verhaallijn</strong>
+                        <p>De climax is bereikt of deze tak is afgerond.</p>
+                    </div>
+                </div>
+                """);
+        }
+
+        sb.AppendLine("</section>");
+        return sb.ToString();
+    }
+
+    private string BuildSplitPartyScriptHtml(string rawMarkdown, SessionFlowGraph graph)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // Split Party Banner
+        sb.AppendLine("<div class=\"split-party-banner\">");
+        sb.AppendLine("<div class=\"split-party-header-row\">");
+        sb.AppendLine("<div class=\"split-party-title-group\">");
+        sb.AppendLine("<span class=\"split-party-badge\">👥 De groep is opgesplitst</span>");
+        sb.AppendLine($"<span class=\"split-party-info\">{_splitActiveNodeIds.Count} parallelle locaties actief</span>");
+        sb.AppendLine("</div>");
+
+        sb.AppendLine("<div class=\"split-party-actions\">");
+        sb.AppendLine($"""
+            <button type="button" class="split-party-view-toggle-btn {(!_showSplitSideBySide ? "is-active" : "")}" data-split-mode="tabs" title="Toon met tabbladen">
+                📑 Tabbladen
+            </button>
+            <button type="button" class="split-party-view-toggle-btn {(_showSplitSideBySide ? "is-active" : "")}" data-split-mode="side-by-side" title="Toon scènes naast elkaar">
+                ◫ Naast elkaar
+            </button>
+            <button type="button" class="split-party-reunite-btn" title="Herenig alle groepen handmatig">
+                🤝 Herenig nu
+            </button>
+            """);
+        sb.AppendLine("</div></div>");
+
+        if (!_showSplitSideBySide)
+        {
+            // Tabs row
+            sb.AppendLine("<div class=\"split-party-tabs-row\">");
+            var currentFocusId = _focusedSplitNodeId ?? _splitActiveNodeIds.FirstOrDefault();
+            for (var i = 0; i < _splitActiveNodeIds.Count; i++)
+            {
+                var splitId = _splitActiveNodeIds[i];
+                var node = graph.FindNode(splitId);
+                var letter = (char)('A' + i);
+                var isSelected = string.Equals(splitId, currentFocusId, StringComparison.OrdinalIgnoreCase);
+                var nodeTitle = node?.Title ?? splitId;
+                var icon = node?.GetArchetypeIcon() ?? "🚪";
+
+                sb.AppendLine($"""
+                    <button type="button" class="split-party-tab-btn {(isSelected ? "is-active" : "")}" data-split-target="{splitId}" title="Schakel naar Groep {letter}">
+                        <span class="split-tab-badge">Groep {letter}</span>
+                        <span class="split-tab-title">{icon} {HtmlEncoder.Default.Encode(nodeTitle)}</span>
+                    </button>
+                    """);
+            }
+            sb.AppendLine("</div>");
+        }
+
+        sb.AppendLine("</div>"); // split-party-banner
+
+        if (!_showSplitSideBySide)
+        {
+            var currentFocusId = _focusedSplitNodeId ?? _splitActiveNodeIds.FirstOrDefault();
+            var focusNode = currentFocusId is not null ? graph.FindNode(currentFocusId) : null;
+            if (focusNode is not null)
+            {
+                var activeIdx = _splitActiveNodeIds.FindIndex(id => string.Equals(id, focusNode.Id, StringComparison.OrdinalIgnoreCase));
+                var groupLabel = activeIdx >= 0 ? $"Groep {(char)('A' + activeIdx)}" : "Opgesplitste Groep";
+                sb.Append(BuildFocusedSceneCardHtml(graph, focusNode, groupLabel));
+            }
+        }
+        else
+        {
+            sb.AppendLine("<div class=\"split-party-side-by-side-grid\">");
+            for (var i = 0; i < _splitActiveNodeIds.Count; i++)
+            {
+                var splitId = _splitActiveNodeIds[i];
+                var node = graph.FindNode(splitId);
+                if (node is null) continue;
+                var letter = (char)('A' + i);
+                var groupLabel = $"Groep {letter}";
+
+                sb.AppendLine("<div class=\"split-party-side-column\">");
+                sb.Append(BuildFocusedSceneCardHtml(graph, node, groupLabel, isSideBySide: true));
+                sb.AppendLine("</div>");
+            }
+            sb.AppendLine("</div>");
+        }
+
+        return sb.ToString();
+    }
+
+    private string BuildAllScenesScriptHtml(string rawMarkdown, SessionFlowGraph graph, string? activeNodeId)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        var preamble = SessionFlowParser.ExtractPreamble(rawMarkdown, graph);
+        if (!string.IsNullOrWhiteSpace(preamble))
+        {
+            var preambleHtml = Renderer.RenderMarkdownSnippetToHtml(preamble, $"Sessions/{Slug}/script.md", CampaignState.Current!);
+            sb.AppendLine($"<div class=\"session-preamble\">{preambleHtml}</div>");
+        }
+
+        foreach (var node in graph.Nodes)
+        {
+            var isActive = string.Equals(node.Id, activeNodeId, StringComparison.OrdinalIgnoreCase);
+            var contentHtml = Renderer.RenderMarkdownSnippetToHtml(node.Content, $"Sessions/{Slug}/script.md", CampaignState.Current!);
+            var outgoing = graph.GetOutgoingEdges(node.Id);
+            var icon = node.GetArchetypeIcon();
+
+            sb.AppendLine($"""
+                <section class="session-scene-section {(isActive ? "is-active-scene" : "")}" id="scene-{node.Id}">
+                    <div class="scene-section-header">
+                        <h2 class="scene-section-title">{icon} {HtmlEncoder.Default.Encode(node.Title)}</h2>
+                        <div class="scene-section-header-actions">
+                            {(node.NodeType == "combat" ? $"<button type=\"button\" class=\"scene-start-combat-btn\" data-scene-id=\"{node.Id}\" title=\"Start gevecht voor deze scène\">⚔️ Start Gevecht</button>" : "")}
+                            {(isActive ? "<span class=\"scene-status-tag\">★ Huidige stap</span>" : "")}
+                        </div>
+                    </div>
+                    <div class="scene-section-body">
+                        {contentHtml}
+                    </div>
+                """);
+
+            if (outgoing.Count > 0)
+            {
+                sb.AppendLine("<div class=\"session-scene-choices\">");
+                sb.AppendLine("<span class=\"scene-choices-title\">🔀 Mogelijke vervolgstappen:</span>");
+                sb.AppendLine("<div class=\"scene-choices-list\">");
+
+                foreach (var edge in outgoing)
+                {
+                    var targetNode = graph.FindNode(edge.TargetNodeId);
+                    var targetTitle = targetNode?.Title ?? edge.TargetNodeId;
+                    var label = string.IsNullOrWhiteSpace(edge.Label) ? targetTitle : $"{edge.Label} ➔ {targetTitle}";
+
+                    sb.AppendLine($"""
+                        <a href="javascript:void(0)" class="scene-inline-choice-btn" data-edge-source="{edge.SourceNodeId}" data-edge-target="{edge.TargetNodeId}">
+                            <span class="choice-btn-arrow">➔</span> {HtmlEncoder.Default.Encode(label)}
+                        </a>
+                        """);
+                }
+
+                sb.AppendLine("</div></div>");
+            }
+
+            sb.AppendLine("</section>");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task HandleChoiceSelectedAsync(SessionFlowEdge edge)
+    {
+        if (_flowGraph is null) return;
+
+        var targetNode = _flowGraph.FindNode(edge.TargetNodeId);
+        if (targetNode is null) return;
+
+        var choiceLabel = string.IsNullOrWhiteSpace(edge.Label) ? "Gekozen" : edge.Label;
+
+        // If party is currently split, update the branch corresponding to the source node
+        if (_splitActiveNodeIds.Count > 1)
+        {
+            var splitIdx = _splitActiveNodeIds.FindIndex(id => string.Equals(id, edge.SourceNodeId, StringComparison.OrdinalIgnoreCase));
+            if (splitIdx >= 0)
+            {
+                var groupLetter = (char)('A' + splitIdx);
+                _splitActiveNodeIds[splitIdx] = edge.TargetNodeId;
+                _focusedSplitNodeId = edge.TargetNodeId;
+
+                await CampaignState.AppendNoteAsync(Slug, $"Groep {groupLetter} kiest: {choiceLabel} ➔ {targetNode.Title}");
+
+                // Check for automatic reunion (full or partial/progressive)
+                var groupsAtTarget = _splitActiveNodeIds.Count(id => string.Equals(id, edge.TargetNodeId, StringComparison.OrdinalIgnoreCase));
+                if (groupsAtTarget > 1)
+                {
+                    // Multiple groups arrived at the same scene - merge them!
+                    _splitActiveNodeIds = _splitActiveNodeIds.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    _focusedSplitNodeId = edge.TargetNodeId;
+
+                    if (_splitActiveNodeIds.Count == 1)
+                    {
+                        var reunitedNodeId = _splitActiveNodeIds[0];
+                        var reunitedNode = _flowGraph.FindNode(reunitedNodeId);
+                        if (!_chosenPath.Contains(reunitedNodeId))
+                        {
+                            _chosenPath.Add(reunitedNodeId);
+                        }
+                        _splitActiveNodeIds.Clear();
+                        _focusedSplitNodeId = null;
+                        await SaveChosenPathAsync();
+                        await SaveSplitPartyStateAsync();
+
+                        await CampaignState.AppendNoteAsync(Slug, $"🤝 De hele party is weer herenigd bij: {reunitedNode?.Title ?? reunitedNodeId}!");
+                    }
+                    else
+                    {
+                        await SaveSplitPartyStateAsync();
+                        await CampaignState.AppendNoteAsync(Slug, $"🤝 Twee groepen zijn samengekomen bij: {targetNode.Title}! (Nog {_splitActiveNodeIds.Count} actieve locaties)");
+                    }
+                }
+                else if (_splitActiveNodeIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
+                {
+                    var reunitedNodeId = _splitActiveNodeIds[0];
+                    var reunitedNode = _flowGraph.FindNode(reunitedNodeId);
+                    if (!_chosenPath.Contains(reunitedNodeId))
+                    {
+                        _chosenPath.Add(reunitedNodeId);
+                    }
+                    _splitActiveNodeIds.Clear();
+                    _focusedSplitNodeId = null;
+                    await SaveChosenPathAsync();
+                    await SaveSplitPartyStateAsync();
+
+                    await CampaignState.AppendNoteAsync(Slug, $"🤝 De hele party is weer herenigd bij: {reunitedNode?.Title ?? reunitedNodeId}!");
+                }
+                else
+                {
+                    await SaveSplitPartyStateAsync();
+                }
+
+                _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+                var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+                _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        if (!_chosenPath.Contains(targetNode.Id))
+        {
+            _chosenPath.Add(targetNode.Id);
+        }
+
+        await SaveChosenPathAsync();
+
+        // Automatically log choice to live-notes!
+        await CampaignState.AppendNoteAsync(Slug, $"Keuze gemaakt: {choiceLabel} ➔ {targetNode.Title}");
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+
+        // Update script view
+        var rawDoc = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        _scriptHtml = BuildBranchingScriptHtml(rawDoc, _flowGraph);
+
+        await InvokeAsync(StateHasChanged);
+        await ScrollToSceneAsync(targetNode.Id);
+    }
+
+    private async Task HandleUndoChoiceAsync()
+    {
+        if (_splitActiveNodeIds.Count > 1)
+        {
+            _splitActiveNodeIds.Clear();
+            _focusedSplitNodeId = null;
+            await SaveSplitPartyStateAsync();
+            await CampaignState.AppendNoteAsync(Slug, "↶ Splitsing geannuleerd, groep weer bijeen.");
+            _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+
+            if (_flowGraph is not null)
+            {
+                var rawDoc = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+                _scriptHtml = BuildBranchingScriptHtml(rawDoc, _flowGraph);
+            }
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (_chosenPath.Count <= 1 || _flowGraph is null) return;
+
+        _chosenPath.RemoveAt(_chosenPath.Count - 1);
+        await SaveChosenPathAsync();
+
+        var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleResetChoicesAsync()
+    {
+        if (_flowGraph is null) return;
+
+        _splitActiveNodeIds.Clear();
+        _focusedSplitNodeId = null;
+        await SaveSplitPartyStateAsync();
+
+        _chosenPath = _flowGraph.Nodes.Count > 0 ? [_flowGraph.Nodes[0].Id] : [];
+        await SaveChosenPathAsync();
+
+        var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleToggleShowAllAsync()
+    {
+        _showAllBranches = !_showAllBranches;
+        if (_flowGraph is not null)
+        {
+            var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+            _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleSaveGraphAsync(SessionFlowGraph graph)
+    {
+        var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        var preamble = SessionFlowParser.ExtractPreamble(rawMarkdown, graph);
+        var serialized = _flowParser.Serialize(graph, preamble);
+
+        await CampaignState.WriteDocumentAsync($"Sessions/{Slug}/script.md", serialized);
+
+        // Also synchronize outline.md with the latest scenes and referenced entities
+        var rawOutline = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/outline.md");
+        if (!string.IsNullOrWhiteSpace(rawOutline))
+        {
+            var updatedOutline = SessionFlowParser.UpdateOutline(rawOutline, graph);
+            await CampaignState.WriteDocumentAsync($"Sessions/{Slug}/outline.md", updatedOutline);
+            _outlineHtml = await RenderDocumentAsync("outline");
+        }
+
+        _flowGraph = graph;
+        _scriptHtml = BuildBranchingScriptHtml(serialized, graph);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScrollToSceneAsync(string nodeId)
+    {
+        if (_flowGraph is null) return;
+        var node = _flowGraph.FindNode(nodeId);
+        if (node is null) return;
+
+        if (!_showAllBranches)
+        {
+            if (!_chosenPath.Contains(nodeId))
+            {
+                _chosenPath.Add(nodeId);
+            }
+            else
+            {
+                var idx = _chosenPath.IndexOf(nodeId);
+                if (idx >= 0)
+                {
+                    _chosenPath = _chosenPath.Take(idx + 1).ToList();
+                }
+            }
+            await SaveChosenPathAsync();
+
+            var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+            _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("eval", $"const el = document.getElementById('scene-{nodeId}'); if (el) el.scrollIntoView({{ behavior: 'smooth', block: 'start' }});");
+        }
+        catch
+        {
+            // Ignore JS scroll error if element not found
+        }
+    }
+
+    private async Task RestoreChosenPathAsync()
+    {
+        try
+        {
+            var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", $"ww-chosen-path-{Slug}");
+            if (!string.IsNullOrWhiteSpace(saved))
+            {
+                _chosenPath = saved.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            }
+        }
+        catch
+        {
+            _chosenPath = [];
+        }
+    }
+
+    private async Task SaveChosenPathAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", $"ww-chosen-path-{Slug}", string.Join(",", _chosenPath));
+        }
+        catch
+        {
+            // Storage unavailable
+        }
+    }
+
+    private async Task RestoreSplitPartyStateAsync()
+    {
+        try
+        {
+            var savedSplit = await JS.InvokeAsync<string?>("sessionStorage.getItem", $"ww-split-nodes-{Slug}");
+            if (!string.IsNullOrWhiteSpace(savedSplit))
+            {
+                _splitActiveNodeIds = savedSplit.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+            }
+            var savedFocus = await JS.InvokeAsync<string?>("sessionStorage.getItem", $"ww-split-focus-{Slug}");
+            if (!string.IsNullOrWhiteSpace(savedFocus))
+            {
+                _focusedSplitNodeId = savedFocus;
+            }
+            var savedSide = await JS.InvokeAsync<string?>("sessionStorage.getItem", $"ww-split-sidebyside-{Slug}");
+            _showSplitSideBySide = savedSide == "true";
+        }
+        catch
+        {
+            _splitActiveNodeIds = [];
+            _focusedSplitNodeId = null;
+            _showSplitSideBySide = false;
+        }
+    }
+
+    private async Task SaveSplitPartyStateAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", $"ww-split-nodes-{Slug}", string.Join(",", _splitActiveNodeIds));
+            await JS.InvokeVoidAsync("sessionStorage.setItem", $"ww-split-focus-{Slug}", _focusedSplitNodeId ?? string.Empty);
+            await JS.InvokeVoidAsync("sessionStorage.setItem", $"ww-split-sidebyside-{Slug}", _showSplitSideBySide ? "true" : "false");
+        }
+        catch
+        {
+            // Storage unavailable
+        }
+    }
+
+    private async Task SetFocusedSplitNodeAsync(string targetId)
+    {
+        await SetFocusedSplitNodeFromJs(targetId);
     }
 
     private async Task<string?> RenderOptionalDocumentAsync(string fileName)
@@ -205,10 +1050,267 @@
         await CampaignState.AppendNoteAsync(Slug, _newNote);
         _newNote = string.Empty;
         _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+        await Task.Delay(50);
+        await ScrollLiveNotesToBottomAsync();
+    }
+
+    private async Task ToggleLiveNotes()
+    {
+        _isLiveNotesOpen = !_isLiveNotesOpen;
+        if (_isLiveNotesOpen)
+        {
+            await Task.Delay(50);
+            await ScrollLiveNotesToBottomAsync();
+        }
+    }
+
+    private async Task ScrollLiveNotesToBottomAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "const el = document.getElementById('live-notes-chat-body'); if (el) el.scrollTop = el.scrollHeight;");
+        }
+        catch
+        {
+            // Ignore JS scroll error
+        }
+    }
+
+    private async Task HandleNoteKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SaveNoteAsync();
+        }
+    }
+
+    private int GetNoteCount() => GetNoteLines().Length;
+
+    private string[] GetNoteLines() => string.IsNullOrWhiteSpace(_existingNotes)
+        ? []
+        : _existingNotes.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private DotNetObjectReference<SessionView>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("wanderingWyvern.attachSessionChoiceListener", _dotNetRef);
+            }
+            catch
+            {
+                // In testing environments or SSR where JS is not ready
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task SelectChoiceFromJs(string sourceId, string targetId)
+    {
+        if (_flowGraph is null) return;
+        var edge = _flowGraph.Edges.FirstOrDefault(e =>
+            string.Equals(e.SourceNodeId, sourceId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(e.TargetNodeId, targetId, StringComparison.OrdinalIgnoreCase));
+
+        if (edge is not null)
+        {
+            await HandleChoiceSelectedAsync(edge);
+        }
+    }
+
+    [JSInvokable]
+    public async Task NavigateToSceneFromJs(string targetId)
+    {
+        await ScrollToSceneAsync(targetId);
+    }
+
+    [JSInvokable]
+    public async Task TriggerPartySplitFromJs(string? sourceNodeId = null)
+    {
+        if (_flowGraph is null) return;
+        var activeNodeId = !string.IsNullOrWhiteSpace(sourceNodeId)
+            ? sourceNodeId
+            : (_focusedSplitNodeId ?? _chosenPath.LastOrDefault() ?? (_flowGraph.Nodes.Count > 0 ? _flowGraph.Nodes[0].Id : null));
+        if (activeNodeId is null) return;
+
+        var outgoing = _flowGraph.GetOutgoingEdges(activeNodeId);
+        if (outgoing.Count < 2) return;
+
+        var newTargets = outgoing.Select(e => e.TargetNodeId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Sub-splitting when already split!
+        if (_splitActiveNodeIds.Count > 1)
+        {
+            var splitIdx = _splitActiveNodeIds.FindIndex(id => string.Equals(id, activeNodeId, StringComparison.OrdinalIgnoreCase));
+            if (splitIdx >= 0)
+            {
+                var oldTitle = _flowGraph.FindNode(activeNodeId)?.Title ?? activeNodeId;
+                var oldLetter = (char)('A' + splitIdx);
+                _splitActiveNodeIds.RemoveAt(splitIdx);
+                _splitActiveNodeIds.InsertRange(splitIdx, newTargets);
+                _focusedSplitNodeId = newTargets[0];
+
+                await SaveSplitPartyStateAsync();
+
+                var newBranchNames = string.Join(", ", newTargets.Select((id, i) => $"Groep {(char)('A' + splitIdx + i)} ➔ {_flowGraph.FindNode(id)?.Title ?? id}"));
+                await CampaignState.AppendNoteAsync(Slug, $"👥 Groep {oldLetter} ({oldTitle}) splitst zich verder op in: {newBranchNames}");
+                _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+
+                var rawMarkdownSplit = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+                _scriptHtml = BuildBranchingScriptHtml(rawMarkdownSplit, _flowGraph);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        // Initial split from single focused scene
+        _splitActiveNodeIds = newTargets;
+        _focusedSplitNodeId = _splitActiveNodeIds.FirstOrDefault();
+        await SaveSplitPartyStateAsync();
+
+        var groupNames = string.Join(", ", _splitActiveNodeIds.Select((id, i) => $"Groep {(char)('A' + i)} ➔ {_flowGraph.FindNode(id)?.Title ?? id}"));
+        await CampaignState.AppendNoteAsync(Slug, $"👥 De groep splitst zich op: {groupNames}");
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+
+        var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task SetFocusedSplitNodeFromJs(string targetId)
+    {
+        if (_splitActiveNodeIds.Contains(targetId, StringComparer.OrdinalIgnoreCase))
+        {
+            _focusedSplitNodeId = targetId;
+            await SaveSplitPartyStateAsync();
+
+            if (_flowGraph is not null)
+            {
+                var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+                _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public async Task ToggleSplitSideBySideFromJs(bool sideBySide)
+    {
+        _showSplitSideBySide = sideBySide;
+        await SaveSplitPartyStateAsync();
+
+        if (_flowGraph is not null)
+        {
+            var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+            _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task ReunitePartyFromJs()
+    {
+        if (_flowGraph is null || _splitActiveNodeIds.Count <= 1) return;
+
+        var targetId = _focusedSplitNodeId ?? _splitActiveNodeIds[0];
+        var targetNode = _flowGraph.FindNode(targetId);
+        var targetTitle = targetNode?.Title ?? targetId;
+
+        if (!_chosenPath.Contains(targetId))
+        {
+            _chosenPath.Add(targetId);
+        }
+        _splitActiveNodeIds.Clear();
+        _focusedSplitNodeId = null;
+        await SaveChosenPathAsync();
+        await SaveSplitPartyStateAsync();
+
+        await CampaignState.AppendNoteAsync(Slug, $"🤝 De groep is handmatig herenigd bij: {targetTitle}");
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+
+        var rawMarkdown = await CampaignState.ReadDocumentAsync($"Sessions/{Slug}/script.md") ?? string.Empty;
+        _scriptHtml = BuildBranchingScriptHtml(rawMarkdown, _flowGraph);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task StartCombatForSceneFromJs(string sceneId)
+    {
+        _isCombatTrackerOpen = true;
+
+        if (_flowGraph is not null)
+        {
+            var node = _flowGraph.FindNode(sceneId);
+            if (node is not null)
+            {
+                // Auto-add campaign PCs if tracker is empty
+                if (_combatState.Participants.Count == 0 && CampaignState.Current?.Pcs is not null)
+                {
+                    foreach (var pc in CampaignState.Current.Pcs)
+                    {
+                        var rawMarkdown = pc.PrimaryDocument is not null
+                            ? await CampaignState.ReadDocumentAsync(pc.PrimaryDocument.RelativePath)
+                            : null;
+                        var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+                        var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
+
+                        _combatState.Participants.Add(new CombatParticipant
+                        {
+                            Name = pc.Title,
+                            IsPlayerCharacter = true,
+                            EntityRelativePath = pc.PrimaryDocument?.RelativePath,
+                            ArmorClass = ac > 10 ? ac : 14,
+                            MaxHp = hp > 10 ? hp : 25,
+                            CurrentHp = hp > 10 ? hp : 25,
+                            Speed = speed,
+                            Initiative = 10,
+                            Actions = actions
+                        });
+                    }
+                }
+
+                // Auto-add referenced NPCs/monsters from the scene's linked entities
+                foreach (var entityPath in node.LinkedEntities)
+                {
+                    if (entityPath.StartsWith("Npcs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var npcEntity = CampaignState.Current?.FindEntityForDocument(entityPath);
+                        var title = npcEntity?.Title ?? System.IO.Path.GetFileNameWithoutExtension(entityPath);
+                        if (!_combatState.Participants.Any(p => string.Equals(p.Name, title, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            var rawMarkdown = await CampaignState.ReadDocumentAsync(entityPath);
+                            var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+                            var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
+
+                            _combatState.Participants.Add(new CombatParticipant
+                            {
+                                Name = title,
+                                IsPlayerCharacter = false,
+                                EntityRelativePath = entityPath,
+                                ArmorClass = ac,
+                                MaxHp = hp,
+                                CurrentHp = hp,
+                                Speed = speed,
+                                Initiative = 10,
+                                Actions = actions
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
         CampaignState.Changed -= HandleChanged;
+        _dotNetRef?.Dispose();
     }
 }

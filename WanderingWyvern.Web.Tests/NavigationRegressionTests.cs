@@ -42,6 +42,34 @@ public sealed class NavigationRegressionTests
     }
 
     [TestMethod]
+    public async Task DesktopNavbar_RemainsStickyAtTop_WhenScrollingDown()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/test/session-view");
+        await WaitForStylesAsync(page);
+        await WaitForLoadingOverlayAsync(page);
+
+        var navMenu = page.Locator(".nav-menu");
+        var initialBox = await navMenu.BoundingBoxAsync();
+        Assert.IsNotNull(initialBox);
+        Assert.AreEqual(0, initialBox.Y, 1.0);
+
+        // Scroll down 600px
+        await page.EvaluateAsync("window.scrollTo(0, 600)");
+        await page.WaitForTimeoutAsync(150);
+
+        var scrolledBox = await navMenu.BoundingBoxAsync();
+        Assert.IsNotNull(scrolledBox);
+        // The navbar must remain stuck at top: Y == 0 relative to viewport
+        Assert.AreEqual(0, scrolledBox.Y, 1.0);
+    }
+
+    [TestMethod]
     public async Task MobileNavbarOpensAsIndependentDrawerWithPinnedHelp()
     {
         await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
@@ -148,6 +176,58 @@ public sealed class NavigationRegressionTests
         Assert.IsFalse(bodyText.Contains("InvalidOperationException"), "Page should not display an InvalidOperationException.");
     }
 
+    [TestMethod]
+    public async Task MobileViewport_DetectHorizontalOverflow()
+    {
+        int[] viewports = [390, 360];
+        string[] testUrls = ["/", "/help", "/campaign-info", "/test/session-view", "/test/editable-document"];
+
+        foreach (var width in viewports)
+        {
+            await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+            {
+                ViewportSize = new ViewportSize { Width = width, Height = 844 }
+            });
+            await MarkClientReadyAsync(context);
+            var page = await context.NewPageAsync();
+
+            foreach (var url in testUrls)
+            {
+                await page.GotoAsync($"{_fixture.BaseUrl}{url}");
+                await WaitForStylesAsync(page);
+                await page.WaitForTimeoutAsync(400);
+
+                var overflowInfo = await page.EvaluateAsync<string?>(
+                    """
+                    () => {
+                        const docWidth = document.documentElement.clientWidth;
+                        const scrollW = document.documentElement.scrollWidth;
+                        const bodyScrollW = document.body.scrollWidth;
+                        
+                        if (scrollW > docWidth || bodyScrollW > docWidth) {
+                            const overflowing = [];
+                            const all = document.querySelectorAll('*');
+                            for (const el of all) {
+                                const rect = el.getBoundingClientRect();
+                                if (rect.right > docWidth + 1) {
+                                    const cls = el.className ? ('.' + String(el.className).split(' ').join('.')) : '';
+                                    overflowing.push(`${el.tagName}${cls} (right: ${rect.right.toFixed(1)}, viewport: ${docWidth})`);
+                                }
+                            }
+                            return `scrollWidth (${scrollW}) / bodyScrollW (${bodyScrollW}) > clientWidth (${docWidth}). Elements:\n` + overflowing.slice(0, 10).join('\n');
+                        }
+                        return null;
+                    }
+                    """);
+
+                if (overflowInfo != null)
+                {
+                    Assert.Fail($"Viewport {width}px on URL {url} has horizontal overflow:\n{overflowInfo}");
+                }
+            }
+        }
+    }
+
     private static void AssertInRange(double actual, double minimum, double maximum)
     {
         Assert.IsTrue(
@@ -163,7 +243,7 @@ public sealed class NavigationRegressionTests
                 const loading = document.querySelector("#app-loading");
                 const nav = document.querySelector(".nav-menu");
                 return (!loading || getComputedStyle(loading).position === "fixed") &&
-                    getComputedStyle(nav).position === "sticky";
+                    (getComputedStyle(nav).position === "sticky" || getComputedStyle(nav).position === "fixed");
             }
             """);
     }

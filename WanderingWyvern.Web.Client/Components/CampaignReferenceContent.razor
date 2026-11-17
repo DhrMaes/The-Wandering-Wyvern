@@ -12,9 +12,44 @@
     <div class="campaign-reference-backdrop" @onclick="CloseModal">
         <section class="campaign-reference-modal" role="dialog" aria-modal="true" aria-labelledby="campaign-reference-title" @onclick:stopPropagation>
             <div class="campaign-reference-modal-header">
-                <h2 id="campaign-reference-title">@_modalDocument.Title</h2>
-                <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="CloseModal">×</button>
+                <div class="reference-modal-title-group">
+                    @if (_modalImageUrl is not null)
+                    {
+                        <img class="reference-modal-avatar" src="@_modalImageUrl" alt="@(_modalEntity?.Title ?? _modalDocument.Title)" />
+                    }
+                    <div>
+                        <h2 id="campaign-reference-title">@(_modalEntity?.Title ?? _modalDocument.Title)</h2>
+                        @if (_modalEntity is not null)
+                        {
+                            <span class="reference-modal-type-badge">@GetEntityBadge(_modalEntity.Type)</span>
+                        }
+                    </div>
+                </div>
+                <div class="reference-modal-actions">
+                    <a class="reference-modal-fullpage-link" href="@($"/document/{_modalDocument.RelativePath}")" title="Open volledige pagina">
+                        ↗ Volledige pagina
+                    </a>
+                    <button type="button" class="campaign-reference-close" aria-label="Sluiten" @onclick="CloseModal">×</button>
+                </div>
             </div>
+
+            @if (_modalEntity is not null && _modalEntity.Documents.Count > 1)
+            {
+                <div class="reference-modal-tabs">
+                    @foreach (var doc in _modalEntity.Documents.Values)
+                    {
+                        var isLogboek = doc.FileName.Equals("logboek", StringComparison.OrdinalIgnoreCase);
+                        var isImagePrompt = doc.FileName.EndsWith(".image-prompt", StringComparison.OrdinalIgnoreCase);
+                        var tabLabel = isLogboek ? "📓 Logboek" : isImagePrompt ? "🎨 Prompt" : $"📜 {doc.Title}";
+
+                        <button type="button" class="reference-modal-tab-btn @(_modalDocument.RelativePath == doc.RelativePath ? "is-active" : "")"
+                                @onclick="() => SwitchModalDocument(doc)">
+                            @tabLabel
+                        </button>
+                    }
+                </div>
+            }
+
             <div class="campaign-reference-modal-body">
                 <CampaignReferenceContent Html="@_modalHtml" />
             </div>
@@ -30,6 +65,8 @@
     private IJSObjectReference? _module;
     private DotNetObjectReference<CampaignReferenceContent>? _dotNetReference;
     private CampaignDocument? _modalDocument;
+    private CampaignEntity? _modalEntity;
+    private string? _modalImageUrl;
     private string? _modalHtml;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -51,13 +88,41 @@
             return;
 
         _modalDocument = document;
+        _modalEntity = CampaignState.Current.FindEntityForDocument(normalizedPath);
+        _modalImageUrl = _modalEntity?.PortraitImage is { } img
+            ? await CampaignState.ReadAssetUrlAsync(img)
+            : null;
         _modalHtml = await Renderer.RenderToHtmlAsync(document, CampaignState.Current);
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task SwitchModalDocument(CampaignDocument document)
+    {
+        if (_modalDocument?.RelativePath == document.RelativePath || CampaignState.Current is null)
+            return;
+
+        _modalDocument = document;
+        _modalHtml = await Renderer.RenderToHtmlAsync(document, CampaignState.Current);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string GetEntityBadge(CampaignEntityType type) => type switch
+    {
+        CampaignEntityType.Npc => "👤 NPC",
+        CampaignEntityType.Pc => "🛡️ Personage (PC)",
+        CampaignEntityType.Location => "📍 Locatie",
+        CampaignEntityType.Lore => "📜 Lore",
+        CampaignEntityType.Item => "💎 Item",
+        CampaignEntityType.Handout => "📋 Handout",
+        CampaignEntityType.Session => "📖 Sessie",
+        _ => "📄 Document"
+    };
+
     private void CloseModal()
     {
         _modalDocument = null;
+        _modalEntity = null;
+        _modalImageUrl = null;
         _modalHtml = null;
     }
 

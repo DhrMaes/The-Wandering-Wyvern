@@ -1,4 +1,4 @@
-﻿@inject NavigationManager Navigation
+@inject NavigationManager Navigation
 
 <!DOCTYPE html>
 <html lang="en">
@@ -63,6 +63,96 @@
                     }, 100);
                 });
             });
+        };
+        window.wanderingWyvern.attachSessionChoiceListener = function (dotNetRef) {
+            window.wanderingWyvern.currentSessionDotNetRef = dotNetRef;
+            if (!window.wanderingWyvern._choiceListenerAttached) {
+                window.wanderingWyvern._choiceListenerAttached = true;
+                document.addEventListener("click", function (e) {
+                    const btn = e.target.closest(".scene-inline-choice-btn, .scene-choice-card-btn");
+                    if (btn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const source = btn.getAttribute("data-edge-source");
+                        const target = btn.getAttribute("data-edge-target");
+                        if (source && target) {
+                            window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("SelectChoiceFromJs", source, target);
+                        }
+                        return;
+                    }
+
+                    const splitBtn = e.target.closest(".scene-choice-split-btn");
+                    if (splitBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const splitSource = splitBtn.getAttribute("data-split-source");
+                        window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("TriggerPartySplitFromJs", splitSource);
+                        return;
+                    }
+
+                    const tabBtn = e.target.closest(".split-party-tab-btn");
+                    if (tabBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const targetNodeId = tabBtn.getAttribute("data-split-target");
+                        if (targetNodeId) {
+                            window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("SetFocusedSplitNodeFromJs", targetNodeId);
+                        }
+                        return;
+                    }
+
+                    const toggleViewBtn = e.target.closest(".split-party-view-toggle-btn");
+                    if (toggleViewBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const mode = toggleViewBtn.getAttribute("data-split-mode");
+                        window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("ToggleSplitSideBySideFromJs", mode === "side-by-side");
+                        return;
+                    }
+
+                    const reuniteBtn = e.target.closest(".split-party-reunite-btn");
+                    if (reuniteBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("ReunitePartyFromJs");
+                        return;
+                    }
+
+                    const backBtn = e.target.closest(".scene-focus-back-btn");
+                    if (backBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const navTarget = backBtn.getAttribute("data-nav-target");
+                        if (navTarget) {
+                            window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("NavigateToSceneFromJs", navTarget);
+                        }
+                        return;
+                    }
+
+                    const combatTriggerBtn = e.target.closest(".scene-start-combat-btn");
+                    if (combatTriggerBtn && window.wanderingWyvern.currentSessionDotNetRef) {
+                        e.preventDefault();
+                        const sceneId = combatTriggerBtn.getAttribute("data-scene-id");
+                        window.wanderingWyvern.currentSessionDotNetRef.invokeMethodAsync("StartCombatForSceneFromJs", sceneId);
+                        return;
+                    }
+                });
+            }
+        };
+        window.wanderingWyvern.attachCanvasWheel = function (viewportEl, dotNetRef) {
+            if (!viewportEl) return null;
+            const handleWheel = function (e) {
+                e.preventDefault();
+                const rect = viewportEl.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                dotNetRef.invokeMethodAsync("HandleCanvasWheel", e.deltaY, e.deltaX, e.ctrlKey, e.shiftKey, mouseX, mouseY);
+            };
+            const handleGlobalMouseUp = function () {
+                dotNetRef.invokeMethodAsync("HandleGlobalMouseUp");
+            };
+            viewportEl.addEventListener("wheel", handleWheel, { passive: false });
+            window.addEventListener("mouseup", handleGlobalMouseUp);
+            return {
+                dispose: function () {
+                    viewportEl.removeEventListener("wheel", handleWheel);
+                    window.removeEventListener("mouseup", handleGlobalMouseUp);
+                }
+            };
         };
         const hideReadyLoadingOverlay = function () {
             if (sessionStorage.getItem("wandering-wyvern-client-ready") === "true") {

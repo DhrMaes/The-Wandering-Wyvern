@@ -85,6 +85,7 @@ public sealed class CampaignIndexBuilder
         var documents = new Dictionary<string, CampaignDocument>(StringComparer.OrdinalIgnoreCase);
         var images = new List<string>();
         var maps = new List<string>();
+        var otherFiles = new List<string>();
         string? iconImage = null;
 
         foreach (var file in files.Where(path => GetDirectory(path).Equals(folderPath, StringComparison.OrdinalIgnoreCase)))
@@ -103,6 +104,10 @@ public sealed class CampaignIndexBuilder
                 else
                     images.Add(file);
             }
+            else
+            {
+                otherFiles.Add(file);
+            }
         }
 
         if (documents.Count == 0)
@@ -118,6 +123,7 @@ public sealed class CampaignIndexBuilder
             Documents = documents,
             Images = images,
             Maps = maps,
+            OtherFiles = otherFiles,
             IconImage = iconImage
         };
     }

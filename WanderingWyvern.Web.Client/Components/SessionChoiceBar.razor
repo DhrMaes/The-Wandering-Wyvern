@@ -1,0 +1,148 @@
+@using DhrMaes.WanderingWyvern.Core.Models
+
+@if (Graph is not null && Graph.Nodes.Count > 0)
+{
+    var activeNodeId = ChosenPath.LastOrDefault() ?? Graph.Nodes[0].Id;
+    var activeNode = Graph.FindNode(activeNodeId) ?? Graph.Nodes[0];
+    var currentNodeId = SplitActiveNodeIds.Count > 1 ? (FocusedSplitNodeId ?? SplitActiveNodeIds[0]) : activeNodeId;
+    var outgoing = Graph.GetOutgoingEdges(currentNodeId);
+
+    <div class="session-choice-bar" role="region" aria-label="Sessie keuzes en voortgang">
+        <div class="choice-bar-breadcrumbs">
+            <span class="choice-bar-label">🧭 Pad:</span>
+            @for (var i = 0; i < ChosenPath.Count; i++)
+            {
+                var nodeId = ChosenPath[i];
+                var node = Graph.FindNode(nodeId);
+                var isCurrent = i == ChosenPath.Count - 1 && SplitActiveNodeIds.Count <= 1;
+                <button type="button"
+                        class="breadcrumb-pill @(isCurrent ? "is-current" : "")"
+                        @onclick="() => OnNavigateToScene.InvokeAsync(nodeId)"
+                        title="@(node?.Title ?? nodeId)">
+                    @(isCurrent ? "★ " : "")@(node?.Title ?? nodeId)
+                </button>
+                @if (i < ChosenPath.Count - 1 || SplitActiveNodeIds.Count > 1)
+                {
+                    <span class="breadcrumb-arrow">➔</span>
+                }
+            }
+            @if (SplitActiveNodeIds.Count > 1)
+            {
+                <span class="breadcrumb-split-badge">👥 Opgesplitst:</span>
+                @for (var j = 0; j < SplitActiveNodeIds.Count; j++)
+                {
+                    var splitId = SplitActiveNodeIds[j];
+                    var splitNode = Graph.FindNode(splitId);
+                    var letter = (char)('A' + j);
+                    var isFocused = string.Equals(splitId, FocusedSplitNodeId, StringComparison.OrdinalIgnoreCase);
+                    <button type="button"
+                            class="breadcrumb-pill breadcrumb-split-pill @(isFocused ? "is-current" : "")"
+                            @onclick="() => OnSelectSplitNode.InvokeAsync(splitId)"
+                            title="Groep @letter: @(splitNode?.Title ?? splitId)">
+                        Groep @letter: @(splitNode?.GetArchetypeIcon() ?? "🚪") @(splitNode?.Title ?? splitId)
+                    </button>
+                    @if (j < SplitActiveNodeIds.Count - 1)
+                    {
+                        <span class="breadcrumb-split-sep">&amp;</span>
+                    }
+                }
+            }
+        </div>
+
+        @if (!ShowAllBranches && outgoing.Count > 0)
+        {
+            <div class="choice-bar-next-group">
+                @foreach (var edge in outgoing)
+                {
+                    var target = Graph.FindNode(edge.TargetNodeId);
+                    var label = string.IsNullOrWhiteSpace(edge.Label) ? (target?.Title ?? edge.TargetNodeId) : edge.Label;
+                    var icon = target?.GetArchetypeIcon() ?? "🚪";
+                    <button type="button"
+                            class="choice-next-pill"
+                            @onclick="() => OnChoiceSelected.InvokeAsync(edge)"
+                            title="Ga naar: @(target?.Title ?? edge.TargetNodeId)">
+                        <span class="next-pill-icon">@icon</span>
+                        <span class="next-pill-label">@label</span>
+                        <span class="next-pill-arrow">➔</span>
+                    </button>
+                }
+                @if (outgoing.Count >= 2)
+                {
+                    <button type="button"
+                            class="choice-split-pill"
+                            @onclick="() => OnPartySplit.InvokeAsync(currentNodeId)"
+                            title="Splits de groep op over deze paden">
+                        👥 Splits
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="choice-bar-controls">
+            @if (ChosenPath.Count > 1 || SplitActiveNodeIds.Count > 1)
+            {
+                <button type="button"
+                        class="choice-control-btn"
+                        @onclick="() => OnUndo.InvokeAsync()"
+                        title="Ga terug naar de vorige scène">
+                    ↶ Vorige
+                </button>
+            }
+
+            <button type="button"
+                    class="choice-control-btn @(ShowAllBranches ? "is-active" : "")"
+                    @onclick="() => OnToggleShowAll.InvokeAsync()"
+                    title="@(ShowAllBranches ? "Schakel naar Focusmodus (één scène tegelijk)" : "Toon alle scènes onder elkaar")">
+                @(ShowAllBranches ? "📜 Alle scènes" : "🎯 Focusmodus")
+            </button>
+
+            @if (ChosenPath.Count > 1 || SplitActiveNodeIds.Count > 1)
+            {
+                <button type="button"
+                        class="choice-control-btn choice-reset-btn"
+                        @onclick="() => OnReset.InvokeAsync()"
+                        title="Begin opnieuw vanaf het startpunt">
+                    ↺ Reset
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public SessionFlowGraph? Graph { get; set; }
+
+    [Parameter]
+    public List<string> ChosenPath { get; set; } = [];
+
+    [Parameter]
+    public List<string> SplitActiveNodeIds { get; set; } = [];
+
+    [Parameter]
+    public string? FocusedSplitNodeId { get; set; }
+
+    [Parameter]
+    public bool ShowAllBranches { get; set; }
+
+    [Parameter]
+    public EventCallback<SessionFlowEdge> OnChoiceSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnUndo { get; set; }
+
+    [Parameter]
+    public EventCallback OnReset { get; set; }
+
+    [Parameter]
+    public EventCallback OnToggleShowAll { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnNavigateToScene { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnSelectSplitNode { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnPartySplit { get; set; }
+}

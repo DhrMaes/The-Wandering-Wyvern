@@ -2,6 +2,8 @@
 @implements IDisposable
 @inject CampaignClientState CampaignState
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@using DhrMaes.WanderingWyvern.Core.Services
 
 <PageTitle>The Wandering Wyvern</PageTitle>
 
@@ -53,12 +55,12 @@
             </div>
         }
 
-        <EntityList Id="npcs" Title="NPCs" Entities="index.Npcs" FolderName="NPCs" />
-        <EntityList Id="locations" Title="Locaties" Entities="index.Locations" FolderName="Locations" />
-        <EntityList Id="lore" Title="Lore" Entities="index.Lore" FolderName="Lore" />
-        <EntityList Id="pcs" Title="Personages (PCs)" Entities="index.Pcs" FolderName="PCs" />
-        <EntityList Id="items" Title="Items" Entities="index.Items" FolderName="Items" />
-        <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" FolderName="Handouts" />
+        <EntityList Id="npcs" Title="NPCs" Entities="index.Npcs" FolderName="NPCs" PlaceholderIcon="👤" />
+        <EntityList Id="locations" Title="Locaties" Entities="index.Locations" FolderName="Locations" PlaceholderIcon="📍" />
+        <EntityList Id="lore" Title="Lore" Entities="index.Lore" FolderName="Lore" PlaceholderIcon="📜" />
+        <EntityList Id="pcs" Title="Personages (PCs)" Entities="index.Pcs" FolderName="PCs" PlaceholderIcon="🛡️" />
+        <EntityList Id="items" Title="Items" Entities="index.Items" FolderName="Items" PlaceholderIcon="💎" />
+        <EntityList Id="handouts" Title="Handouts" Entities="index.Handouts" FolderName="Handouts" PlaceholderIcon="📋" />
         
         <EntityCreateModal @ref="_createModal" />
         <CampaignSetupModal @ref="_setupModal" />
@@ -115,37 +117,38 @@
 
         var outlinePath = $"Sessions/{slug}/outline.md";
         var scriptPath = $"Sessions/{slug}/script.md";
+        var liveNotesPath = $"Sessions/{slug}/live-notes.md";
 
-        var sessionGoal = string.IsNullOrWhiteSpace(result.SessionObjective) ? "- " : $"- {result.SessionObjective}";
+        var template = SessionFlowTemplates.GetTemplate(result.SessionTemplate);
+        var dateLine = string.IsNullOrWhiteSpace(result.SessionDate) ? $"**Datum:** {DateTime.Now:yyyy-MM-dd}" : $"**Datum:** {result.SessionDate}";
+        var locationLine = string.IsNullOrWhiteSpace(result.SessionLocation) ? "" : $"**Startlocatie:** {result.SessionLocation}\n";
+
         var outlineContent = $@"# Sessie {nextSessionNumber} — {title}
 
-{(string.IsNullOrWhiteSpace(result.SessionDate) ? "" : $"In-game Datum: {result.SessionDate}\n")}{(string.IsNullOrWhiteSpace(result.SessionLocation) ? "" : $"Huidige Locatie: {result.SessionLocation}\n\n")}## Doel van deze sessie
-{sessionGoal}
-
-## Belangrijke NPCs
-- 
-
-## Locaties
-- 
-
-## Plot hooks & Geheimen
-- 
+**Sessie:** {nextSessionNumber}
+{dateLine}
+{locationLine}
+{(string.IsNullOrWhiteSpace(result.SessionObjective) ? "" : $"## Doel van deze sessie\n- {result.SessionObjective}\n\n")}{template.DefaultOutlineMarkdown.Trim()}
 ";
+
         var scriptContent = $@"# Sessie {nextSessionNumber} — {title} (Script)
 
-## Introductie
-- 
+{dateLine}
+*Regie- en voorleesscript voor de DM. Zie ook `outline.md`.*
 
-## Scenes
-### Scene 1: ...
-- 
+{template.DefaultScriptMarkdown.Trim()}
+";
 
-## Outro
-- 
+        var liveNotesContent = $@"# Live Notes — Sessie {nextSessionNumber} ({title})
+
+*Tijdens het spelen via The Wandering Wyvern worden gekozen paden en notities hier automatisch bijgehouden.*
 ";
 
         await CampaignState.WriteDocumentAsync(outlinePath, outlineContent);
         await CampaignState.WriteDocumentAsync(scriptPath, scriptContent);
+        await CampaignState.WriteDocumentAsync(liveNotesPath, liveNotesContent);
+
+        NavigationManager.NavigateTo($"/session/{slug}?tab=flow");
     }
 
     public void Dispose()
