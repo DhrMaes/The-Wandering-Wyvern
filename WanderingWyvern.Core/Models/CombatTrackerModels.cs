@@ -35,6 +35,12 @@ public sealed class CombatParticipant
     public int TempHp { get; set; }
     public int ArmorClass { get; set; }
     public string? Speed { get; set; }
+    public string? CreatureType { get; set; }
+    public string? Senses { get; set; }
+    public string? Immunities { get; set; }
+
+    // UI state
+    public bool IsExpanded { get; set; }
 
     // Status & conditions
     public bool IsDefeated => CurrentHp <= 0;

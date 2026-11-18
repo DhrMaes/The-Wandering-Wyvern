@@ -1,10 +1,13 @@
 @inject CampaignClientState CampaignState
+@inject IJSRuntime JS
 @using DhrMaes.WanderingWyvern.Core.Models
 @using DhrMaes.WanderingWyvern.Core.Services
 @using System.Text.Encodings.Web
 
 <div class="combat-tracker-container" id="combat-tracker">
-    <!-- Header Controls -->
+    <!-- Sticky Top Header & Active Turn Banner -->
+    <div class="combat-sticky-top @(Combat.IsActive ? "is-combat-active" : "")">
+        <!-- Header Controls -->
     <div class="combat-header">
         <div class="combat-title-area">
             <span class="combat-badge">⚔️ Gevecht Tracker</span>
@@ -14,6 +17,12 @@
             }
         </div>
         <div class="combat-header-actions">
+            @if (Combat.Participants.Count > 1)
+            {
+                <button type="button" class="combat-btn-secondary combat-btn-sort" @onclick="SortParticipantsByInitiative" title="Sorteer op initiative (hoogste eerst)">
+                    🔀 Sorteer
+                </button>
+            }
             @if (!Combat.IsActive && Combat.Participants.Count > 0)
             {
                 <button type="button" class="combat-btn-primary" @onclick="StartCombatAsync" title="Sorteer op initiative en start het gevecht">
@@ -22,14 +31,20 @@
             }
             else if (Combat.IsActive)
             {
-                <button type="button" class="combat-btn-secondary" @onclick="PreviousTurnAsync" title="Ga terug naar vorige beurt">
+                <button type="button" class="combat-btn-secondary" @onclick="PreviousTurnAsync" title="Ga terug naar vorige beurt (Alt+Left)">
                     ⏮ Vorige
                 </button>
-                <button type="button" class="combat-btn-primary" @onclick="NextTurnAsync" title="Ga naar de volgende beurt">
+                <button type="button" class="combat-btn-primary" @onclick="NextTurnAsync" title="Ga naar de volgende beurt (Alt+Right)">
                     Volgende ⏭
                 </button>
                 <button type="button" class="combat-btn-danger" @onclick="EndCombatAsync" title="Beëindig het gevecht en log naar Live Notes">
                     ⏹ Einde
+                </button>
+            }
+            @if (Combat.Participants.Count > 0)
+            {
+                <button type="button" class="combat-btn-reset" @onclick="PromptResetCombat" title="Maak deelnemerslijst leeg">
+                    @(_confirmReset ? "Zeker? Klik nogmaals" : "🗑️ Leegmaken")
                 </button>
             }
             <button type="button" class="combat-btn-close" @onclick="OnClose" title="Sluit het gevechtspaneel">✕</button>
@@ -53,10 +68,12 @@
                 }
             </div>
         </div>
+    }
+</div>
 
-        <!-- Active Participant Actions & Attacks (if any) -->
-        @if (ActiveParticipant.Actions.Count > 0)
-        {
+    <!-- Active Participant Actions & Attacks (if any) -->
+    @if (Combat.IsActive && ActiveParticipant is not null && ActiveParticipant.Actions.Count > 0)
+    {
             <div class="combat-actions-accordion">
                 <div class="combat-actions-header">
                     <span>⚡ Acties & Aanvallen van @ActiveParticipant.Name:</span>
@@ -83,7 +100,6 @@
                 </div>
             </div>
         }
-    }
 
     <!-- Participant List (Initiative Order) -->
     <div class="combat-participant-list">
@@ -101,14 +117,24 @@
                 var index = i;
                 var p = Combat.Participants[i];
                 var isTurn = Combat.IsActive && Combat.ActiveParticipantIndex == index;
+                var isExpanded = isTurn || p.IsExpanded;
 
-                <div class="combat-participant-card @(isTurn ? "is-active-turn" : "") @(p.IsDefeated ? "is-defeated" : "")">
+                <div @key="p.Id" id="@($"combat-card-{p.Id}")" class="combat-participant-card @(isTurn ? "is-active-turn" : "") @(p.IsDefeated ? "is-defeated" : "")">
                     <!-- Top Row: Order / Name / Initiative / Actions -->
                     <div class="participant-top-row">
                         <div class="participant-title-group">
+                            <span class="participant-turn-order" title="Volgorde in gevechtsronde">#@(index + 1)</span>
                             <span class="participant-type-icon">@(p.IsPlayerCharacter ? "🧙" : "👾")</span>
                             <strong class="participant-name">@p.Name</strong>
                             <span class="participant-ac-badge" title="Armor Class">🛡️ @p.ArmorClass</span>
+                            @if (p.Actions.Count > 0 || !string.IsNullOrEmpty(p.CreatureType))
+                            {
+                                <button type="button" class="participant-expand-btn @(isExpanded ? "is-expanded" : "")"
+                                        @onclick="() => ToggleParticipantExpand(p)"
+                                        title="Details, statblock en aanvallen in-/uitklappen">
+                                    @(isExpanded ? "▲ Details" : "▼ Acties & Stats")
+                                </button>
+                            }
                         </div>
 
                         <div class="participant-init-group">
@@ -117,7 +143,8 @@
                                    class="init-input"
                                    value="@p.Initiative"
                                    @onchange="@(e => UpdateInitiative(p, e.Value))"
-                                   title="Voer fysieke initiative worp in" />
+                                   @onkeydown="@(e => HandleInitiativeKeyDown(e))"
+                                   title="Voer fysieke initiative worp in (klik op Sorteer of druk op Enter om te ordenen)" />
                             <button type="button" class="participant-remove-btn" @onclick="() => RemoveParticipant(p)" title="Verwijder uit gevecht">✕</button>
                         </div>
                     </div>
@@ -133,30 +160,69 @@
                                 <span class="hp-current">@p.CurrentHp</span> / <span class="hp-max">@p.MaxHp</span>
                                 @if (p.TempHp > 0)
                                 {
-                                    <span class="hp-temp" title="Tijdelijke HP">(+@p.TempHp temp)</span>
+                                    <span class="hp-temp" title="Tijdelijke HP (absorbeert eerst schade)">(+@p.TempHp temp)</span>
                                 }
                                 @if (p.IsDefeated)
                                 {
-                                    <span class="hp-defeated-badge">💀 Uitgeschakeld</span>
+                                    <span class="hp-defeated-badge">💀 @(p.IsPlayerCharacter ? "Bewusteloos" : "Uitgeschakeld")</span>
                                 }
                             </div>
 
-                            <!-- Quick Damage / Healing Inputs -->
+                            <!-- Quick Damage / Healing / Temp HP Inputs -->
                             <div class="hp-delta-actions">
                                 <input type="number"
                                        class="hp-delta-input"
                                        placeholder="HP"
                                        min="1"
                                        value="@GetPendingDelta(p.Id)"
-                                       @onchange="@(e => SetPendingDelta(p.Id, e.Value))" />
-                                <button type="button" class="hp-damage-btn" @onclick="() => ApplyDamageToParticipant(p)" title="Schade toebrengen">
+                                       @onchange="@(e => SetPendingDelta(p.Id, e.Value))"
+                                       @onkeydown="@(e => HandleHpKeyDown(e, p))"
+                                       title="Typ waarde en druk op Enter voor Schade, of klik op de knoppen" />
+                                <button type="button" class="hp-damage-btn" @onclick="() => ApplyDamageToParticipant(p)" title="Schade toebrengen (Enter)">
                                     💥 Schade
                                 </button>
                                 <button type="button" class="hp-heal-btn" @onclick="() => ApplyHealingToParticipant(p)" title="Genezen">
                                     💚 Genezing
                                 </button>
+                                <button type="button" class="hp-temp-btn" @onclick="() => ApplyTempHpToParticipant(p)" title="Stel tijdelijke HP in">
+                                    🛡️ Temp
+                                </button>
                             </div>
                         </div>
+
+                        <!-- Death Saves for Downed Player Characters -->
+                        @if (p.IsPlayerCharacter && p.CurrentHp <= 0)
+                        {
+                            <div class="death-saves-row">
+                                <span class="death-saves-label">Death Saves:</span>
+                                <div class="death-saves-group">
+                                    <span class="death-save-type">Succes:</span>
+                                    @for (var s = 1; s <= 3; s++)
+                                    {
+                                        var step = s;
+                                        <button type="button"
+                                                class="death-save-dot @(p.DeathSaveSuccesses >= step ? "dot-success-active" : "")"
+                                                @onclick="() => ToggleDeathSaveSuccess(p, step)"
+                                                title="Death Save Succes @step (klik om te wijzigen)">
+                                            @(p.DeathSaveSuccesses >= step ? "●" : "○")
+                                        </button>
+                                    }
+                                </div>
+                                <div class="death-saves-group">
+                                    <span class="death-save-type">Mislukt:</span>
+                                    @for (var f = 1; f <= 3; f++)
+                                    {
+                                        var step = f;
+                                        <button type="button"
+                                                class="death-save-dot @(p.DeathSaveFailures >= step ? "dot-failure-active" : "")"
+                                                @onclick="() => ToggleDeathSaveFailure(p, step)"
+                                                title="Death Save Mislukking @step (klik om te wijzigen)">
+                                            @(p.DeathSaveFailures >= step ? "●" : "○")
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
 
                     <!-- Conditions & Status Effects -->
@@ -166,7 +232,10 @@
                             <div class="active-conditions-list">
                                 @foreach (var cond in p.Conditions)
                                 {
-                                    <button type="button" class="condition-chip" @onclick="() => p.ToggleCondition(cond)" title="Klik om @cond te verwijderen">
+                                    <button type="button"
+                                            class="condition-chip"
+                                            @onclick="() => p.ToggleCondition(cond)"
+                                            title="@GetConditionTooltip(cond)">
                                         @GetConditionIcon(cond) @cond ✕
                                     </button>
                                 }
@@ -175,14 +244,85 @@
 
                         <div class="add-condition-picker">
                             <select class="condition-select" @onchange="@(e => OnConditionSelected(p, e.Value))">
-                                <option value="">+ Conditie...</option>
+                                <option value="">+ Conditie toevoegen...</option>
                                 @foreach (var cond in CommonConditions)
                                 {
-                                    <option value="@cond">@cond</option>
+                                    <option value="@cond" title="@GetConditionTooltip(cond)">@cond</option>
                                 }
                             </select>
                         </div>
                     </div>
+
+                    <!-- Expanded Statblock & Attacks (Auto-opens on active turn, or on toggle) -->
+                    @if (isExpanded)
+                    {
+                        <div class="participant-expanded-details">
+                            @if (!string.IsNullOrEmpty(p.CreatureType) || !string.IsNullOrEmpty(p.Speed) || !string.IsNullOrEmpty(p.Senses) || !string.IsNullOrEmpty(p.Immunities))
+                            {
+                                <div class="participant-meta-chips">
+                                    @if (!string.IsNullOrEmpty(p.CreatureType))
+                                    {
+                                        <span class="meta-chip chip-type" title="Type wezen">🏷️ @p.CreatureType</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(p.Speed))
+                                    {
+                                        <span class="meta-chip chip-speed" title="Snelheid">👟 @p.Speed</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(p.Senses))
+                                    {
+                                        <span class="meta-chip chip-senses" title="Zintuigen">👁️ @p.Senses</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(p.Immunities))
+                                    {
+                                        <span class="meta-chip chip-immunities" title="Immuniteiten">🛡️ @p.Immunities</span>
+                                    }
+                                </div>
+                            }
+
+                            @if (p.Actions.Count > 0)
+                            {
+                                <div class="participant-actions-list">
+                                    <div class="participant-actions-title">⚡ Aanvallen, Acties &amp; Eigenschappen:</div>
+                                    @foreach (var act in p.Actions)
+                                    {
+                                        <div class="combat-action-card archetype-@act.Type.ToLowerInvariant()">
+                                            <div class="action-card-top">
+                                                <strong class="action-card-name">@act.Name</strong>
+                                                <span class="action-card-type">@act.Type</span>
+                                                @if (!string.IsNullOrEmpty(act.AttackBonus))
+                                                {
+                                                    <span class="action-card-bonus">🎯 @act.AttackBonus</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(act.Damage))
+                                                {
+                                                    <span class="action-card-damage">💥 @act.Damage</span>
+                                                }
+                                            </div>
+                                            <p class="action-card-desc">@act.Description</p>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(p.EntityRelativePath))
+                            {
+                                <div class="participant-footer-links">
+                                    <a href="/document/@p.EntityRelativePath" target="_blank" class="participant-doc-link">
+                                        📄 Bekijk volledig blad ↗
+                                    </a>
+                                </div>
+                            }
+
+                            @if (isTurn)
+                            {
+                                <div class="participant-turn-footer">
+                                    <button type="button" class="combat-card-next-btn" @onclick="NextTurnAsync" title="Voltooi deze beurt en ga naar de volgende (Alt+Right)">
+                                        Volgende Beurt ⏭
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
             }
         }
@@ -259,6 +399,7 @@
     private readonly Dictionary<string, int?> _pendingHpDeltas = new();
     private string _selectedNpcSlug = string.Empty;
     private int _npcMultiplier = 1;
+    private bool _confirmReset = false;
 
     private string _customName = string.Empty;
     private int _customHp = 20;
@@ -283,15 +424,66 @@
         "Unconscious"
     ];
 
+    public void ToggleParticipantExpand(CombatParticipant p)
+    {
+        p.IsExpanded = !p.IsExpanded;
+    }
+
+    public void SortParticipantsByInitiative()
+    {
+        var activeId = ActiveParticipant?.Id;
+        Combat.Participants = Combat.Participants
+            .OrderByDescending(p => p.Initiative)
+            .ThenBy(p => p.IsPlayerCharacter ? 0 : 1)
+            .ThenBy(p => p.Name)
+            .ToList();
+
+        if (!string.IsNullOrEmpty(activeId))
+        {
+            var newIdx = Combat.Participants.FindIndex(p => p.Id == activeId);
+            Combat.ActiveParticipantIndex = newIdx >= 0 ? newIdx : 0;
+        }
+    }
+
+    private bool _shouldScrollToActive;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldScrollToActive && ActiveParticipant is not null)
+        {
+            _shouldScrollToActive = false;
+            await ScrollActiveParticipantIntoViewAsync(ActiveParticipant.Id);
+        }
+    }
+
+    private async Task ScrollActiveParticipantIntoViewAsync(string participantId)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("eval", $$"""
+                setTimeout(() => {
+                    const el = document.getElementById('combat-card-{{participantId}}');
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    }
+                }, 40);
+                """);
+        }
+        catch
+        {
+            // Ignore in environments without window/DOM
+        }
+    }
+
     public async Task StartCombatAsync()
     {
         if (Combat.Participants.Count == 0) return;
 
-        // Sort descending by initiative
-        Combat.Participants = Combat.Participants.OrderByDescending(p => p.Initiative).ToList();
+        SortParticipantsByInitiative();
         Combat.IsActive = true;
         Combat.Round = 1;
         Combat.ActiveParticipantIndex = 0;
+        _shouldScrollToActive = true;
 
         var names = string.Join(", ", Combat.Participants.Select(p => p.Name));
         await LogCombatEventAsync($"⚔️ Gevecht gestart (Ronde 1): {names}");
@@ -308,6 +500,7 @@
             Combat.Round++;
             await LogCombatEventAsync($"⚔️ Ronde {Combat.Round} begint!");
         }
+        _shouldScrollToActive = true;
     }
 
     public async Task PreviousTurnAsync()
@@ -327,12 +520,29 @@
                 Combat.ActiveParticipantIndex = 0;
             }
         }
+        _shouldScrollToActive = true;
     }
 
     public async Task EndCombatAsync()
     {
         Combat.IsActive = false;
         await LogCombatEventAsync($"⚔️ Gevecht beëindigd in ronde {Combat.Round}.");
+    }
+
+    public void PromptResetCombat()
+    {
+        if (_confirmReset)
+        {
+            Combat.Participants.Clear();
+            Combat.IsActive = false;
+            Combat.Round = 1;
+            Combat.ActiveParticipantIndex = 0;
+            _confirmReset = false;
+        }
+        else
+        {
+            _confirmReset = true;
+        }
     }
 
     public async Task AddAllCampaignPcsAsync()
@@ -349,7 +559,7 @@
                 ? await CampaignState.ReadDocumentAsync(pc.PrimaryDocument.RelativePath)
                 : null;
 
-            var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+            var (ac, hp, speed, creatureType, senses, immunities) = CombatStatblockParser.ExtractExtendedStats(rawMarkdown);
             var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
 
             Combat.Participants.Add(new CombatParticipant
@@ -361,10 +571,15 @@
                 MaxHp = hp > 10 ? hp : 25,
                 CurrentHp = hp > 10 ? hp : 25,
                 Speed = speed,
+                CreatureType = creatureType,
+                Senses = senses,
+                Immunities = immunities,
                 Initiative = 10,
                 Actions = actions
             });
         }
+
+        SortParticipantsByInitiative();
     }
 
     public async Task AddSelectedNpcAsync()
@@ -378,7 +593,7 @@
             ? await CampaignState.ReadDocumentAsync(npc.PrimaryDocument.RelativePath)
             : null;
 
-        var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+        var (ac, hp, speed, creatureType, senses, immunities) = CombatStatblockParser.ExtractExtendedStats(rawMarkdown);
         var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
 
         for (var i = 1; i <= Math.Max(1, _npcMultiplier); i++)
@@ -393,10 +608,15 @@
                 MaxHp = hp,
                 CurrentHp = hp,
                 Speed = speed,
+                CreatureType = creatureType,
+                Senses = senses,
+                Immunities = immunities,
                 Initiative = 10,
                 Actions = actions
             });
         }
+
+        SortParticipantsByInitiative();
 
         _selectedNpcSlug = string.Empty;
         _npcMultiplier = 1;
@@ -415,6 +635,8 @@
             CurrentHp = _customHp,
             Initiative = _customInit
         });
+
+        SortParticipantsByInitiative();
 
         _customName = string.Empty;
         _customHp = 20;
@@ -443,6 +665,42 @@
         {
             participant.Initiative = init;
         }
+    }
+
+    private void HandleInitiativeKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SortParticipantsByInitiative();
+        }
+    }
+
+    private void HandleHpKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, CombatParticipant participant)
+    {
+        if (e.Key == "Enter")
+        {
+            ApplyDamageToParticipant(participant);
+        }
+    }
+
+    private void ApplyTempHpToParticipant(CombatParticipant participant)
+    {
+        var amount = GetPendingDelta(participant.Id);
+        if (amount.HasValue && amount.Value >= 0)
+        {
+            participant.TempHp = amount.Value;
+            _pendingHpDeltas[participant.Id] = null;
+        }
+    }
+
+    private void ToggleDeathSaveSuccess(CombatParticipant participant, int step)
+    {
+        participant.DeathSaveSuccesses = (participant.DeathSaveSuccesses == step) ? step - 1 : step;
+    }
+
+    private void ToggleDeathSaveFailure(CombatParticipant participant, int step)
+    {
+        participant.DeathSaveFailures = (participant.DeathSaveFailures == step) ? step - 1 : step;
     }
 
     private void ApplyDamageToParticipant(CombatParticipant participant)
@@ -512,6 +770,26 @@
         "invisible" => "👻",
         "frightened" => "😨",
         _ => "⚠️"
+    };
+
+    private static string GetConditionTooltip(string condition) => condition.ToLowerInvariant() switch
+    {
+        "blind" or "blinded" => "Blinded: Ziet niets, faalt sight checks. Aanvallen tegen doelwit hebben advantage; doelwits eigen aanvallen hebben disadvantage.",
+        "charmed" => "Charmed: Kan de charmer niet aanvallen. De charmer heeft advantage op sociale checks.",
+        "concentrating" => "Concentration: Bij schade moet een DC 10 of halve schade CON save gegooid worden om de spreuk te behouden.",
+        "deafened" => "Deafened: Hoort niets, faalt hearing checks.",
+        "frightened" => "Frightened: Disadvantage op ability checks & attack rolls zolang de bron van angst in zicht is. Kan niet dichterbij bewegen.",
+        "grappled" => "Grappled: Snelheid is 0 ft.",
+        "incapacitated" => "Incapacitated: Kan geen acties of reacties ondernemen.",
+        "invisible" => "Invisible: Onzichtbaar. Aanvallen hebben advantage; aanvallen tegen het wezen disadvantage.",
+        "paralyzed" => "Paralyzed: Incapacitated, kan niet bewegen of praten. Faalt automatisch STR en DEX saves. Aanvallen binnen 5 ft zijn critical hits.",
+        "petrified" => "Petrified: Versteend. Incapacitated. Resistent tegen alle schade, immuun voor gif/ziektes.",
+        "poisoned" => "Poisoned: Disadvantage op attack rolls en ability checks.",
+        "prone" => "Prone: Liggend op de grond. Bewegen kost dubbele movement. Aanvallen binnen 5 ft hebben advantage; ranged attacks disadvantage.",
+        "restrained" => "Restrained: Snelheid is 0 ft. Disadvantage op DEX saves. Aanvallen tegen doelwit hebben advantage; eigen aanvallen disadvantage.",
+        "stunned" => "Stunned: Incapacitated, spreekt haperend, faalt STR en DEX saves. Aanvallen tegen doelwit hebben advantage.",
+        "unconscious" => "Unconscious: Bewusteloos, laat alles vallen, prone. Faalt STR/DEX saves. Aanvallen binnen 5 ft zijn auto-crits.",
+        _ => $"{condition}: Actieve statusconditie"
     };
 
     private async Task LogCombatEventAsync(string message)

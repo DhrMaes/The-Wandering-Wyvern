@@ -536,9 +536,11 @@ public sealed class SessionFlowParser
             {
                 postMermaidPreamble = postMermaid[..firstSceneIndex].Trim();
             }
-            else if (firstSceneIndex == -1 && headingMatches.Count > 0)
+            else if (firstSceneIndex == -1)
             {
-                postMermaidPreamble = postMermaid[..headingMatches[0].Index].Trim();
+                postMermaidPreamble = headingMatches.Count > 0
+                    ? postMermaid[..headingMatches[0].Index].Trim()
+                    : postMermaid.Trim();
             }
 
             var parts = new List<string>();

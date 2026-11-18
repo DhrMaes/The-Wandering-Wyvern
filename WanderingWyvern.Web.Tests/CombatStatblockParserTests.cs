@@ -105,4 +105,95 @@ public sealed class CombatStatblockParserTests
         p.ToggleCondition("Poisoned");
         Assert.IsFalse(p.Conditions.Contains("Poisoned"));
     }
+
+    [TestMethod]
+    public void ExtractActions_ParsesDutchHeadingsAndSpells()
+    {
+        const string dutchSheet = """
+            # Schimmel-Tovenaar
+            - **AC:** 13
+            - **HP:** 32
+
+            ### Aanvallen
+            - **Sporenstaf:** *Melee Weapon Attack:* +4 om te raken. *Raak:* 1d6 + 2 bludgeoning schade.
+
+            ### Spreuken
+            - **Sporenbom:** Werpt een bal vol giftige sporen binnen 30 ft.
+            """;
+
+        var actions = CombatStatblockParser.ExtractActions(dutchSheet);
+        Assert.AreEqual(2, actions.Count);
+
+        var staff = actions.FirstOrDefault(a => a.Name == "Sporenstaf");
+        Assert.IsNotNull(staff);
+        Assert.AreEqual("Actie", staff.Type);
+        Assert.AreEqual("+4 to hit", staff.AttackBonus);
+        StringAssert.Contains(staff.Damage, "1d6 + 2");
+
+        var bomb = actions.FirstOrDefault(a => a.Name == "Sporenbom");
+        Assert.IsNotNull(bomb);
+        Assert.AreEqual("Spreuken", bomb.Type);
+    }
+
+    [TestMethod]
+    public void ExtractActions_ParsesCampaignBulletedStatblocks()
+    {
+        const string campaignSheet = """
+            # Hook Horror
+            ## Statblock (5e)
+            - **Grootte/Type:** Large Monstrosity, Neutral
+            - **AC:** 15 (natuurlijke bepantsering) | **HP:** 75 (10d10 + 20) | **Speed:** 30 ft, Climb 30 ft
+            - **Senses:** Blindsight 60 ft, Passieve Perception 15
+            - **Echolocation:** Kan niet vertrouwen op Blindsight wanneer doof.
+            - **Keen Hearing:** Advantage op gehoor-checks.
+            - **Acties:**
+              - *Multiattack:* Maakt twee Hook aanvallen.
+              - *Hook:* Melee Weapon Attack: +6 to hit, reach 10 ft., 2d6 + 4 piercing damage.
+            """;
+
+        var ext = CombatStatblockParser.ExtractExtendedStats(campaignSheet);
+        Assert.AreEqual(15, ext.ArmorClass);
+        Assert.AreEqual(75, ext.HitPoints);
+        Assert.AreEqual("30 ft, Climb 30 ft", ext.Speed);
+        Assert.AreEqual("Large Monstrosity, Neutral", ext.CreatureType);
+        Assert.AreEqual("Blindsight 60 ft, Passieve Perception 15", ext.Senses);
+
+        var actions = CombatStatblockParser.ExtractActions(campaignSheet);
+        Assert.AreEqual(4, actions.Count);
+
+        var echolocation = actions.FirstOrDefault(a => a.Name == "Echolocation");
+        Assert.IsNotNull(echolocation);
+        Assert.AreEqual("Eigenschap", echolocation.Type);
+
+        var multiattack = actions.FirstOrDefault(a => a.Name == "Multiattack");
+        Assert.IsNotNull(multiattack);
+        Assert.AreEqual("Actie", multiattack.Type);
+
+        var hook = actions.FirstOrDefault(a => a.Name == "Hook");
+        Assert.IsNotNull(hook);
+        Assert.AreEqual("+6 to hit", hook.AttackBonus);
+        StringAssert.Contains(hook.Damage, "2d6 + 4");
+    }
+
+    [TestMethod]
+    public void Participant_DeathSaves_ResetWhenHealed()
+    {
+        var p = new CombatParticipant
+        {
+            Name = "Perseus",
+            MaxHp = 25,
+            CurrentHp = 0,
+            DeathSaveSuccesses = 2,
+            DeathSaveFailures = 1
+        };
+
+        Assert.IsTrue(p.IsDefeated);
+
+        // Healing brings PC back and clears death saves
+        p.ApplyHealing(5);
+        Assert.AreEqual(5, p.CurrentHp);
+        Assert.IsFalse(p.IsDefeated);
+        Assert.AreEqual(0, p.DeathSaveSuccesses);
+        Assert.AreEqual(0, p.DeathSaveFailures);
+    }
 }

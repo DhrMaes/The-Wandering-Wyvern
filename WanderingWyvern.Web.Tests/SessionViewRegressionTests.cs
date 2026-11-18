@@ -575,6 +575,174 @@ public sealed class SessionViewRegressionTests
         StringAssert.Contains(await roundBadge.InnerTextAsync(), "Ronde 2");
     }
 
+    [TestMethod]
+    public async Task CombatTracker_TempHp_Conditions_AndReset_WorkInBrowser()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/test/session-view");
+
+        await page.Locator(".outline-column").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 10000 });
+
+        // Open Combat Tracker
+        await page.Locator(".combat-tracker-btn").ClickAsync();
+        var tracker = page.Locator("#combat-tracker");
+        await tracker.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        // Add a fighter
+        await page.Locator(".custom-creature-details summary").ClickAsync();
+        await page.Locator(".custom-input").FillAsync("Geralt");
+        await page.Locator(".custom-stat-input[placeholder='HP']").FillAsync("30");
+        await page.Locator(".add-custom-btn").ClickAsync();
+
+        var participantCard = page.Locator(".combat-participant-card:has-text('Geralt')");
+        await participantCard.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        // Verify turn order badge #1
+        var orderBadge = participantCard.Locator(".participant-turn-order");
+        Assert.AreEqual("#1", await orderBadge.InnerTextAsync());
+
+        // Add 10 Temp HP
+        await participantCard.Locator(".hp-delta-input").FillAsync("10");
+        await participantCard.Locator(".hp-temp-btn").ClickAsync();
+
+        var tempHpSpan = participantCard.Locator(".hp-temp");
+        await tempHpSpan.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        StringAssert.Contains(await tempHpSpan.InnerTextAsync(), "+10 temp");
+
+        // Add Condition: Poisoned
+        await participantCard.Locator(".condition-select").SelectOptionAsync("Poisoned");
+        var conditionChip = participantCard.Locator(".condition-chip:has-text('Poisoned')");
+        await conditionChip.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        // Remove Condition by clicking chip
+        await conditionChip.ClickAsync();
+        await conditionChip.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+
+        // Test Reset
+        var resetBtn = page.Locator(".combat-btn-reset");
+        await resetBtn.ClickAsync(); // first click prompts "Zeker? Klik nogmaals"
+        StringAssert.Contains(await resetBtn.InnerTextAsync(), "Zeker");
+        await resetBtn.ClickAsync(); // second click confirms
+
+        // Participant list is now empty
+        await page.Locator(".combat-empty-notice").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+    }
+
+    [TestMethod]
+    public async Task CombatTracker_InitiativeReordering_AndNpcExpansion_WorkInBrowser()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/test/session-view");
+
+        await page.Locator(".outline-column").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 10000 });
+
+        // Open Combat Tracker
+        await page.Locator(".combat-tracker-btn").ClickAsync();
+        var tracker = page.Locator("#combat-tracker");
+        await tracker.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+
+        // Add Fighter with init 10
+        await page.Locator(".custom-creature-details summary").ClickAsync();
+        await page.Locator(".custom-input").FillAsync("Slow Knight");
+        await page.Locator(".custom-stat-input[placeholder='Init']").FillAsync("10");
+        await page.Locator(".add-custom-btn").ClickAsync();
+
+        // Add Goblin with init 20
+        await page.Locator(".custom-input").FillAsync("Fast Rogue");
+        await page.Locator(".custom-stat-input[placeholder='Init']").FillAsync("20");
+        await page.Locator(".add-custom-btn").ClickAsync();
+
+        // Verify Fast Rogue is #1 at the top of the list because of initiative ordering
+        var cards = page.Locator(".combat-participant-card");
+        await cards.First.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        StringAssert.Contains(await cards.Nth(0).InnerTextAsync(), "Fast Rogue");
+        StringAssert.Contains(await cards.Nth(1).InnerTextAsync(), "Slow Knight");
+
+        // Edit Slow Knight's initiative input to 25 without it immediately scrambling
+        var slowKnightInitInput = cards.Nth(1).Locator(".init-input");
+        await slowKnightInitInput.FillAsync("25");
+        // Click "Sorteer" to re-order explicitly
+        await page.Locator(".combat-btn-sort").ClickAsync();
+        // Now Slow Knight is #1 and Fast Rogue is #2
+        StringAssert.Contains(await cards.Nth(0).InnerTextAsync(), "Slow Knight");
+        StringAssert.Contains(await cards.Nth(1).InnerTextAsync(), "Fast Rogue");
+
+        // Start combat: Slow Knight should be active and highlighted
+        await page.Locator(".combat-btn-primary:has-text('Start Gevecht')").ClickAsync();
+        Assert.IsTrue((await cards.Nth(0).GetAttributeAsync("class"))?.Contains("is-active-turn") ?? false);
+        var firstCardId = await cards.Nth(0).GetAttributeAsync("id");
+        Assert.IsTrue(!string.IsNullOrEmpty(firstCardId) && firstCardId.StartsWith("combat-card-"));
+
+        // Advance to next turn: Fast Rogue should be active
+        await page.Locator(".combat-btn-primary:has-text('Volgende')").First.ClickAsync();
+        Assert.IsTrue((await cards.Nth(1).GetAttributeAsync("class"))?.Contains("is-active-turn") ?? false);
+        var secondCardId = await cards.Nth(1).GetAttributeAsync("id");
+        Assert.IsTrue(!string.IsNullOrEmpty(secondCardId) && secondCardId.StartsWith("combat-card-"));
+    }
+
+    [TestMethod]
+    public async Task MixAndMatchPanes_CanCombineAnyPanes_WorkInBrowser()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1440, Height = 900 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync($"{_fixture.BaseUrl}/test/session-view");
+
+        var outlineCol = page.Locator(".outline-column");
+        var scriptCol = page.Locator(".script-column");
+        var combatCol = page.Locator(".combat-column");
+
+        await outlineCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 10000 });
+        await scriptCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 10000 });
+
+        // 1. Switch to Outline only via toolbar
+        await page.Locator(".session-view-controls button:has-text('Alleen outline')").ClickAsync();
+        await scriptCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+        Assert.IsTrue(await outlineCol.IsVisibleAsync());
+
+        // 2. Open Gevecht via toolbar -> Outline + Battle
+        await page.Locator(".session-view-controls button:has-text('Gevecht')").ClickAsync();
+        await combatCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        Assert.IsTrue(await outlineCol.IsVisibleAsync());
+        Assert.IsFalse(await scriptCol.IsVisibleAsync());
+
+        // 3. Toggle active Outline button off -> Alleen Battle
+        await page.Locator(".session-view-controls button:has-text('Alleen outline')").ClickAsync();
+        await outlineCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+        Assert.IsTrue(await combatCol.IsVisibleAsync());
+
+        // 4. Switch to Script via toolbar -> Script + Battle
+        await page.Locator(".session-view-controls button:has-text('Alleen script')").ClickAsync();
+        await scriptCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        Assert.IsTrue(await combatCol.IsVisibleAsync());
+        Assert.IsFalse(await outlineCol.IsVisibleAsync());
+
+        // 5. Switch to Gesplitst via toolbar -> Outline + Script + Battle (all 3)
+        await page.Locator(".session-view-controls button:has-text('Gesplitst')").ClickAsync();
+        await outlineCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+        Assert.IsTrue(await scriptCol.IsVisibleAsync());
+        Assert.IsTrue(await combatCol.IsVisibleAsync());
+
+        // 6. Close Gevecht via toolbar -> Gesplitst (Outline + Script) remains
+        await page.Locator(".session-view-controls button:has-text('Gevecht')").ClickAsync();
+        await combatCol.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+        Assert.IsTrue(await outlineCol.IsVisibleAsync());
+        Assert.IsTrue(await scriptCol.IsVisibleAsync());
+    }
+
     public class OverflowCheckResult
     {
         public double DocWidth { get; set; }

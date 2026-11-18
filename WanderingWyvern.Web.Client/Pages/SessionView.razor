@@ -23,37 +23,39 @@
     {
         <div class="session-view-header">
             <h1>@_session.Title</h1>
-            <div class="session-view-controls" role="group" aria-label="Weergavemodus">
-                <button type="button"
-                        class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
-                        @onclick="ShowSplitView"
-                        title="Gesplitste weergave (beide panelen)">
-                    <span class="view-btn-icon">◫</span> Gesplitst
-                </button>
-                <button type="button"
-                        class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && _isScriptCollapsed ? "is-active" : "")"
-                        @onclick="ShowOutlineOnly"
-                        title="Alleen outline tonen (volledig scherm)">
-                    <span class="view-btn-icon">◧</span> Alleen outline
-                </button>
-                <button type="button"
-                        class="session-view-btn @(!_isFlowView && _isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
-                        @onclick="ShowScriptOnly"
-                        title="Alleen script tonen (volledig scherm)">
-                    <span class="view-btn-icon">◨</span> Alleen script
-                </button>
-                <button type="button"
-                        class="session-view-btn @(_isFlowView ? "is-active" : "")"
-                        @onclick="ShowFlowView"
-                        title="Interactieve flowchart en sessie-bouwer">
-                    <span class="view-btn-icon">☍</span> Flow & Builder
-                </button>
-                <button type="button"
-                        class="session-view-btn combat-tracker-btn @(_isCombatTrackerOpen ? "is-combat-active" : "")"
-                        @onclick="ToggleCombatTracker"
-                        title="Open of sluit het Gevecht / Combat Tracker zijpaneel">
-                    <span class="view-btn-icon">⚔️</span> Gevecht @(_combatState.IsActive ? $" (Ronde {_combatState.Round})" : "")
-                </button>
+            <div class="session-view-header-right">
+                <div class="session-view-controls" role="group" aria-label="Weergavemodus">
+                    <button type="button"
+                            class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                            @onclick="ShowSplitView"
+                            title="Gesplitste weergave (Outline + Script)">
+                        <span class="view-btn-icon">◫</span> Gesplitst
+                    </button>
+                    <button type="button"
+                            class="session-view-btn @(!_isFlowView && !_isOutlineCollapsed && _isScriptCollapsed ? "is-active" : "")"
+                            @onclick="ShowOutlineOnly"
+                            title="Alleen outline tonen (volledig scherm)">
+                        <span class="view-btn-icon">◧</span> Alleen outline
+                    </button>
+                    <button type="button"
+                            class="session-view-btn @(!_isFlowView && _isOutlineCollapsed && !_isScriptCollapsed ? "is-active" : "")"
+                            @onclick="ShowScriptOnly"
+                            title="Alleen script tonen (volledig scherm)">
+                        <span class="view-btn-icon">◨</span> Alleen script
+                    </button>
+                    <button type="button"
+                            class="session-view-btn @(_isFlowView ? "is-active" : "")"
+                            @onclick="ShowFlowView"
+                            title="Interactieve flowchart en sessie-bouwer">
+                        <span class="view-btn-icon">☍</span> Flow & Builder
+                    </button>
+                    <button type="button"
+                            class="session-view-btn combat-tracker-btn @(!_isFlowView && _isCombatTrackerOpen ? "is-combat-active is-active" : "")"
+                            @onclick="ToggleCombatTracker"
+                            title="Open of sluit het Gevecht / Combat Tracker paneel">
+                        <span class="view-btn-icon">⚔️</span> Gevecht @(_combatState.IsActive ? $" (Ronde {_combatState.Round})" : "")
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -269,18 +271,28 @@
     private void ToggleCombatTracker()
     {
         _isCombatTrackerOpen = !_isCombatTrackerOpen;
-    }
-
-    private async Task HandleCombatLogEventAsync(string message)
-    {
-        await CampaignState.AppendNoteAsync(Slug, message);
-        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
-        await InvokeAsync(StateHasChanged);
+        if (_isCombatTrackerOpen && _isFlowView)
+        {
+            _isFlowView = false;
+        }
+        // If both outline and script were collapsed and user closes combat, reopen script
+        if (!_isCombatTrackerOpen && _isOutlineCollapsed && _isScriptCollapsed)
+        {
+            _isScriptCollapsed = false;
+        }
     }
 
     private void ShowSplitView()
     {
         _isFlowView = false;
+        // If already in split view while combat tracker is open, toggle both off to show only combat
+        if (!_isOutlineCollapsed && !_isScriptCollapsed && _isCombatTrackerOpen)
+        {
+            _isOutlineCollapsed = true;
+            _isScriptCollapsed = true;
+            return;
+        }
+
         _isOutlineCollapsed = false;
         _isScriptCollapsed = false;
     }
@@ -288,6 +300,13 @@
     private void ShowOutlineOnly()
     {
         _isFlowView = false;
+        // If outline is already the only document pane open and combat is open, toggle it off to show only combat
+        if (!_isOutlineCollapsed && _isScriptCollapsed && _isCombatTrackerOpen)
+        {
+            _isOutlineCollapsed = true;
+            return;
+        }
+
         _isOutlineCollapsed = false;
         _isScriptCollapsed = true;
     }
@@ -295,6 +314,13 @@
     private void ShowScriptOnly()
     {
         _isFlowView = false;
+        // If script is already the only document pane open and combat is open, toggle it off to show only combat
+        if (_isOutlineCollapsed && !_isScriptCollapsed && _isCombatTrackerOpen)
+        {
+            _isScriptCollapsed = true;
+            return;
+        }
+
         _isOutlineCollapsed = true;
         _isScriptCollapsed = false;
     }
@@ -304,8 +330,17 @@
         _isFlowView = true;
     }
 
+    private async Task HandleCombatLogEventAsync(string message)
+    {
+        await CampaignState.AppendNoteAsync(Slug, message);
+        _existingNotes = await CampaignState.ReadNotesAsync(Slug);
+        await InvokeAsync(StateHasChanged);
+    }
+
     private string GetSplitPaneClass()
     {
+        if (_isOutlineCollapsed && _isScriptCollapsed)
+            return "is-both-collapsed";
         if (_isOutlineCollapsed)
             return "is-outline-collapsed";
         if (_isScriptCollapsed)
@@ -425,14 +460,27 @@
     {
         var sb = new System.Text.StringBuilder();
 
-        // Optional preamble on the start scene
-        if (graph.Nodes.Count > 0 && graph.Nodes[0].Id == activeNode.Id)
+        // Preamble: displayed directly on the start scene, or as a collapsible reference accordion on later scenes
+        var preamble = SessionFlowParser.ExtractPreamble(rawMarkdown, graph);
+        if (!string.IsNullOrWhiteSpace(preamble))
         {
-            var preamble = SessionFlowParser.ExtractPreamble(rawMarkdown, graph);
-            if (!string.IsNullOrWhiteSpace(preamble))
+            var preambleHtml = Renderer.RenderMarkdownSnippetToHtml(preamble, $"Sessions/{Slug}/script.md", CampaignState.Current!);
+            var isStartScene = graph.Nodes.Count > 0 && graph.Nodes[0].Id == activeNode.Id;
+
+            if (isStartScene)
             {
-                var preambleHtml = Renderer.RenderMarkdownSnippetToHtml(preamble, $"Sessions/{Slug}/script.md", CampaignState.Current!);
                 sb.AppendLine($"<div class=\"session-preamble\">{preambleHtml}</div>");
+            }
+            else
+            {
+                sb.AppendLine($"""
+                    <details class="session-preamble-collapsible">
+                        <summary class="session-preamble-summary">📜 Sessie-regels, Klok &amp; Mutaties raadplegen</summary>
+                        <div class="session-preamble">
+                            {preambleHtml}
+                        </div>
+                    </details>
+                    """);
             }
         }
 
@@ -1284,7 +1332,7 @@
                         if (!_combatState.Participants.Any(p => string.Equals(p.Name, title, StringComparison.OrdinalIgnoreCase)))
                         {
                             var rawMarkdown = await CampaignState.ReadDocumentAsync(entityPath);
-                            var (ac, hp, speed) = CombatStatblockParser.ExtractStats(rawMarkdown);
+                            var (ac, hp, speed, creatureType, senses, immunities) = CombatStatblockParser.ExtractExtendedStats(rawMarkdown);
                             var actions = CombatStatblockParser.ExtractActions(rawMarkdown);
 
                             _combatState.Participants.Add(new CombatParticipant
@@ -1296,6 +1344,9 @@
                                 MaxHp = hp,
                                 CurrentHp = hp,
                                 Speed = speed,
+                                CreatureType = creatureType,
+                                Senses = senses,
+                                Immunities = immunities,
                                 Initiative = 10,
                                 Actions = actions
                             });
