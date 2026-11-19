@@ -70,6 +70,30 @@ public sealed class NavigationRegressionTests
     }
 
     [TestMethod]
+    public async Task NavBrand_ShowsSubtitleAlways_AndDoesNotShowHardcodedTitle()
+    {
+        await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 800 }
+        });
+        await MarkClientReadyAsync(context);
+        var page = await context.NewPageAsync();
+        await page.GotoAsync(_fixture.BaseUrl);
+        await WaitForStylesAsync(page);
+        await WaitForLoadingOverlayAsync(page);
+
+        // Subtitle is always visible with "The Wandering Wyvern"
+        var subtitle = page.Locator(".nav-brand-subtitle");
+        await subtitle.WaitForAsync();
+        var subtitleText = await subtitle.TextContentAsync();
+        Assert.AreEqual("The Wandering Wyvern", subtitleText?.Trim());
+
+        // Without a campaign loaded, no campaign title should be rendered
+        var titleCount = await page.Locator(".nav-brand-title").CountAsync();
+        Assert.AreEqual(0, titleCount);
+    }
+
+    [TestMethod]
     public async Task MobileNavbarOpensAsIndependentDrawerWithPinnedHelp()
     {
         await using var context = await _fixture.Browser.NewContextAsync(new BrowserNewContextOptions

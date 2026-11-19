@@ -1,0 +1,48 @@
+@namespace DhrMaes.WanderingWyvern.Web.Client.Components
+@implements IDisposable
+@inject CampaignClientState CampaignState
+
+@if (!string.IsNullOrWhiteSpace(Title))
+{
+    <div class="nav-brand-title">@Title</div>
+}
+
+@code {
+    private string? Title => GetCampaignTitle();
+
+    protected override void OnInitialized()
+    {
+        CampaignState.Changed += HandleChanged;
+    }
+
+    private string? GetCampaignTitle()
+    {
+        if (CampaignState.Current is not { } index)
+            return null;
+
+        if (index.Readme is { } readme)
+        {
+            if (readme.HasExplicitTitle && !string.IsNullOrWhiteSpace(readme.Title))
+                return readme.Title;
+
+            if (!string.IsNullOrWhiteSpace(readme.Title) && !string.Equals(readme.Title, "Readme", StringComparison.OrdinalIgnoreCase))
+                return readme.Title;
+        }
+
+        if (!string.IsNullOrWhiteSpace(index.CampaignTitle) &&
+            !string.Equals(index.CampaignTitle, "The Wandering Wyvern", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(index.CampaignTitle, "Readme", StringComparison.OrdinalIgnoreCase))
+        {
+            return index.CampaignTitle;
+        }
+
+        return null;
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        CampaignState.Changed -= HandleChanged;
+    }
+}
